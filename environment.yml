@@ -1,0 +1,13 @@
+name: tarea_desoft
+channels:
+  - defaults
+  - https://repo.anaconda.com/pkgs/main
+  - https://repo.anaconda.com/pkgs/r
+  - https://repo.anaconda.com/pkgs/msys2
+dependencies:
+  - astropy
+  - matplotlib
+  - notebook
+  - numpy
+  - pandas
+prefix: C:\Users\Alonso\anaconda3\envs\tarea_desoft
