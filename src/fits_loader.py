@@ -1,21 +1,24 @@
 from astropy.io import fits
-import matplotlib.pyplot as plt
+import numpy as np
 
-archivo = "data/AS209_continuum.fits"
 
-with fits.open(archivo) as hdul:
-    datos = hdul[0].data
+def cargar_fits(archivo):
+    """
+    Carga una imagen FITS y devuelve sus datos en 2D.
+    """
 
-print("Forma original:", datos.shape)
+    with fits.open(archivo) as hdul:
+        datos = hdul[0].data
 
-#imagen en 2d
-imagen = datos[0, 0]
+    print("Forma original:", datos.shape)
 
-print("Forma de la imagen:", imagen.shape)
+    imagen = datos[0, 0]
 
-plt.imshow(imagen, origin="lower")
-plt.colorbar(label="Intensidad")
-plt.title("AS 209 - Imagen de continuo DSHARP")
-plt.xlabel("Píxel")
-plt.ylabel("Píxel")
-plt.show()
+    print("Forma de la imagen:", imagen.shape)
+    print("Valor máximo:", np.max(imagen))
+    print("Valor mínimo:", np.min(imagen))
+    print("Media:", np.nanmean(imagen))
+    print("Mediana:", np.nanmedian(imagen))
+    print("Desviación estándar:", np.nanstd(imagen))
+
+    return imagen
