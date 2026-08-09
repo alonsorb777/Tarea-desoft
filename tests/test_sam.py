@@ -1,270 +1,422 @@
-from pathlib import Path
-
-import torch
 import numpy as np
-import matplotlib.pyplot as plt
-
-from src.fits_loader import cargar_fits
+import pytest
 
 from src.segmentacion.sam_segmentacion import (
-    cargar_modelo,
     preparar_imagen,
-    generar_mascaras
+    reducir_imagen_para_sam,
+    convertir_coordenadas,
+    ordenar_mascaras,
+    segmentar_disco
 )
 
 
-ARCHIVO_FITS = Path(
-    "data/AS209_continuum.fits"
-)
 
-CHECKPOINT_SAM = Path(
-    "models/sam_vit_b_01ec64.pth"
-)
+# Preparar imagen
 
 
-def preparar_visualizacion(imagen):
-    """
-    Ajusta el contraste de la imagen para visualizar
-    mejor las estructuras astronómicas.
-    """
+def test_preparar_imagen():
 
-    imagen = np.asarray(
-        imagen,
+    imagen = np.random.random(
+        (100, 100)
+    ).astype(
+        np.float32
+    )
+
+    resultado = preparar_imagen(
+        imagen
+    )
+
+    assert resultado.shape == (
+        100,
+        100,
+        3
+    )
+
+    assert resultado.dtype == np.uint8
+
+    assert resultado.min() >= 0
+
+    assert resultado.max() <= 255
+
+
+def test_preparar_imagen_con_nan():
+
+    imagen = np.random.random(
+        (100, 100)
+    ).astype(
+        np.float32
+    )
+
+    imagen[10, 10] = np.nan
+
+    resultado = preparar_imagen(
+        imagen
+    )
+
+    assert resultado.shape == (
+        100,
+        100,
+        3
+    )
+
+    assert np.isfinite(
+        resultado
+    ).all()
+
+
+def test_preparar_imagen_constante():
+
+    imagen = np.ones(
+        (100, 100),
         dtype=np.float32
     )
 
-    # Eliminar valores no válidos
-    imagen = np.nan_to_num(
-        imagen,
-        nan=0.0,
-        posinf=0.0,
-        neginf=0.0
+    with pytest.raises(ValueError):
+
+        preparar_imagen(
+            imagen
+        )
+
+
+
+# Reducir imagen
+
+
+def test_reducir_imagen():
+
+    imagen = np.zeros(
+        (2000, 3000, 3),
+        dtype=np.uint8
     )
 
-    # Percentiles para mejorar el contraste
-    minimo = np.percentile(
-        imagen,
+    resultado, escala = (
+        reducir_imagen_para_sam(
+            imagen,
+            max_size=1500
+        )
+    )
+
+    assert resultado.shape[0] <= 1500
+
+    assert resultado.shape[1] <= 1500
+
+    assert escala < 1
+
+
+def test_no_reducir_imagen():
+
+    imagen = np.zeros(
+        (500, 500, 3),
+        dtype=np.uint8
+    )
+
+    resultado, escala = (
+        reducir_imagen_para_sam(
+            imagen,
+            max_size=1500
+        )
+    )
+
+    assert resultado.shape == imagen.shape
+
+    assert escala == 1.0
+
+
+
+# Coordenadas
+
+def test_convertir_coordenadas():
+
+    x, y = convertir_coordenadas(
+        100,
+        200,
+        0.5
+    )
+
+    assert x == 50
+
+    assert y == 100
+
+
+def test_convertir_coordenadas_invalida():
+
+    with pytest.raises(ValueError):
+
+        convertir_coordenadas(
+            100,
+            200,
+            0
+        )
+
+
+
+# Ordenar máscaras
+
+
+def test_ordenar_por_iou():
+
+    masks = [
+        {
+            "predicted_iou": 0.5,
+            "stability_score": 0.8,
+            "area": 100
+        },
+        {
+            "predicted_iou": 0.9,
+            "stability_score": 0.7,
+            "area": 200
+        },
+        {
+            "predicted_iou": 0.7,
+            "stability_score": 0.9,
+            "area": 300
+        }
+    ]
+
+    resultado = ordenar_mascaras(
+        masks,
+        "predicted_iou"
+    )
+
+    assert resultado[0]["predicted_iou"] == 0.9
+    assert resultado[1]["predicted_iou"] == 0.7
+    assert resultado[2]["predicted_iou"] == 0.5
+
+
+def test_ordenar_por_estabilidad():
+
+    masks = [
+        {
+            "predicted_iou": 0.9,
+            "stability_score": 0.6,
+            "area": 100
+        },
+        {
+            "predicted_iou": 0.7,
+            "stability_score": 0.95,
+            "area": 200
+        }
+    ]
+
+    resultado = ordenar_mascaras(
+        masks,
+        "stability_score"
+    )
+
+    assert resultado[0]["stability_score"] == 0.95
+
+
+def test_ordenar_por_area():
+
+    masks = [
+        {
+            "predicted_iou": 0.9,
+            "stability_score": 0.8,
+            "area": 100
+        },
+        {
+            "predicted_iou": 0.7,
+            "stability_score": 0.9,
+            "area": 500
+        }
+    ]
+
+    resultado = ordenar_mascaras(
+        masks,
+        "area"
+    )
+
+    assert resultado[0]["area"] == 500
+
+
+def test_ordenar_criterio_invalido():
+
+    with pytest.raises(ValueError):
+
+        ordenar_mascaras(
+            [],
+            "criterio_inexistente"
+        )
+
+
+
+# Predictor simulado para pruebas
+
+
+class PredictorFalso:
+
+    def __init__(self):
+
+        self.imagen = None
+
+    def set_image(self, imagen):
+
+        self.imagen = imagen
+
+    def predict(
+        self,
+        point_coords,
+        point_labels,
+        multimask_output=True
+    ):
+
+        altura, ancho = (
+            self.imagen.shape[:2]
+        )
+
+        mask1 = np.zeros(
+            (altura, ancho),
+            dtype=bool
+        )
+
+        mask2 = np.zeros(
+            (altura, ancho),
+            dtype=bool
+        )
+
+        mask3 = np.zeros(
+            (altura, ancho),
+            dtype=bool
+        )
+
+        mask1[20:40, 20:40] = True
+
+        mask2[10:50, 10:50] = True
+
+        mask3[30:60, 30:60] = True
+
+        masks = np.array(
+            [
+                mask1,
+                mask2,
+                mask3
+            ]
+        )
+
+        scores = np.array(
+            [
+                0.60,
+                0.95,
+                0.75
+            ]
+        )
+
+        return (
+            masks,
+            scores,
+            None
+        )
+
+
+
+# Segmentación 
+
+def test_segmentar_disco():
+
+    predictor = PredictorFalso()
+
+    imagen = np.zeros(
+        (100, 100, 3),
+        dtype=np.uint8
+    )
+
+    puntos = [
+        [30, 30]
+    ]
+
+    etiquetas = [
         1
-    )
+    ]
 
-    maximo = np.percentile(
-        imagen,
-        99
-    )
-
-    imagen = np.clip(
-        imagen,
-        minimo,
-        maximo
-    )
-
-    # Normalizar entre 0 y 1
-    imagen = (
-        imagen - minimo
-    ) / (
-        maximo - minimo
-    )
-
-    return imagen
-
-
-def main():
-
-    # --------------------------------
-    # 1. Configurar dispositivo
-    # --------------------------------
-
-    # Por ahora utilizaremos CPU.
-    device = torch.device("cpu")
-
-    print("--------------------------------")
-    print("PRUEBA SAM - AS209")
-    print("--------------------------------")
-
-    print(
-        f"Dispositivo utilizado: {device}"
-    )
-
-
-    # --------------------------------
-    # 2. Cargar FITS
-    # --------------------------------
-
-    print("\nCargando FITS...")
-
-    imagen = cargar_fits(
-        ARCHIVO_FITS
-    )
-
-
-    # --------------------------------
-    # 3. Preparar imagen para SAM
-    # --------------------------------
-
-    print("\nPreparando imagen...")
-
-    imagen_rgb = preparar_imagen(
-        imagen
-    )
-
-    print(
-        "Forma de la imagen para SAM:",
-        imagen_rgb.shape
-    )
-
-    print(
-        "Tipo de datos:",
-        imagen_rgb.dtype
-    )
-
-
-    # --------------------------------
-    # 4. Cargar SAM
-    # --------------------------------
-
-    print("\nCargando SAM...")
-
-    predictor = cargar_modelo(
-        CHECKPOINT_SAM,
-        device
-    )
-
-
-    # --------------------------------
-    # 5. Generar máscaras
-    # --------------------------------
-
-    print("\nGenerando máscaras con SAM...")
-
-    masks = generar_mascaras(
+    resultado = segmentar_disco(
         predictor,
-        imagen_rgb
+        imagen,
+        puntos,
+        etiquetas
     )
 
-    print(
-        f"Cantidad de máscaras generadas: {len(masks)}"
+    assert "mask" in resultado
+    assert "score" in resultado
+    assert "all_masks" in resultado
+    assert "all_scores" in resultado
+
+    assert resultado["mask"].shape == (
+        100,
+        100
     )
 
-
-    # --------------------------------
-    # 6. Mostrar información de máscaras
-    # --------------------------------
-
-    for i, mask in enumerate(masks):
-
-        print(
-            f"\nMáscara {i + 1}"
-        )
-
-        print(
-            "Área:",
-            mask["area"]
-        )
-
-        print(
-            "IoU predicho:",
-            mask["predicted_iou"]
-        )
-
-        print(
-            "Estabilidad:",
-            mask["stability_score"]
-        )
-
-        print(
-            "Bounding box:",
-            mask["bbox"]
-        )
+    assert resultado["score"] == 0.95
 
 
-    # --------------------------------
-    # 7. Preparar imagen para visualizar
-    # --------------------------------
+def test_segmentar_sin_puntos():
 
-    imagen_visual = preparar_visualizacion(
-        imagen
+    predictor = PredictorFalso()
+
+    imagen = np.zeros(
+        (100, 100, 3),
+        dtype=np.uint8
     )
 
+    with pytest.raises(ValueError):
 
-    # --------------------------------
-    # 8. Visualización
-    # --------------------------------
-
-    cantidad_mascaras = len(masks)
-
-    cantidad_imagenes = cantidad_mascaras + 1
-
-    columnas = 3
-
-    filas = int(
-        np.ceil(
-            cantidad_imagenes / columnas
+        segmentar_disco(
+            predictor,
+            imagen,
+            [],
+            []
         )
+
+
+def test_segmentar_puntos_y_etiquetas_diferentes():
+
+    predictor = PredictorFalso()
+
+    imagen = np.zeros(
+        (100, 100, 3),
+        dtype=np.uint8
     )
 
-    plt.figure(
-        figsize=(15, 5 * filas)
-    )
+    puntos = [
+        [30, 30],
+        [50, 50]
+    ]
 
-
-    # --------------------------------
-    # Imagen original
-    # --------------------------------
-
-    plt.subplot(
-        filas,
-        columnas,
+    etiquetas = [
         1
+    ]
+
+    with pytest.raises(ValueError):
+
+        segmentar_disco(
+            predictor,
+            imagen,
+            puntos,
+            etiquetas
+        )
+
+
+def test_segmentar_etiqueta_invalida():
+
+    predictor = PredictorFalso()
+
+    imagen = np.zeros(
+        (100, 100, 3),
+        dtype=np.uint8
     )
 
-    plt.imshow(
-        imagen_visual,
-        cmap="gray",
-        origin="lower"
-    )
+    puntos = [
+        [30, 30]
+    ]
 
-    plt.title(
-        "AS209"
-    )
+    etiquetas = [
+        2
+    ]
 
-    plt.axis("off")
+    with pytest.raises(ValueError):
 
-
-    # --------------------------------
-    # Mostrar cada máscara
-    # --------------------------------
-
-    for i, mask in enumerate(masks):
-
-        plt.subplot(
-            filas,
-            columnas,
-            i + 2
+        segmentar_disco(
+            predictor,
+            imagen,
+            puntos,
+            etiquetas
         )
-
-        plt.imshow(
-            imagen_visual,
-            cmap="gray",
-            origin="lower"
-        )
-
-        segmentacion = mask["segmentation"]
-
-        plt.contour(
-            segmentacion,
-            levels=[0.5]
-        )
-
-        plt.title(
-            f"Máscara {i + 1}"
-        )
-
-        plt.axis("off")
-
-
-    plt.tight_layout()
-
-    plt.show()
-
-if __name__ == "__main__":
-    main()

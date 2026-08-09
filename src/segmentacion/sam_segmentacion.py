@@ -1,45 +1,417 @@
 from pathlib import Path
+from urllib.request import urlretrieve
+
 import numpy as np
-import matplotlib.pyplot as plt
-import torch
-from segment_anything import sam_model_registry, SamPredictor, SamAutomaticMaskGenerator 
+
+from segment_anything import (
+    sam_model_registry,
+    SamPredictor,
+    SamAutomaticMaskGenerator
+)
+
+
+# Configuración
+
+
+SAM_URL = (
+    "https://dl.fbaipublicfiles.com/"
+    "segment_anything/sam_vit_b_01ec64.pth"
+)
+
+
+
+# Checkpoint
+
+def obtener_checkpoint(checkpoint_path):
+    """
+    Comprueba si existe el checkpoint de SAM.
+
+    Si no existe, pregunta al usuario si desea descargarlo.
+    """
+
+    checkpoint_path = Path(checkpoint_path)
+
+    if checkpoint_path.exists():
+        print(
+            f"Modelo SAM encontrado:\n"
+            f"{checkpoint_path}"
+        )
+        return checkpoint_path
+
+    print("\nNo se encontró el modelo SAM ViT-B.")
+
+    respuesta = input(
+        "¿Deseas descargarlo ahora? [s/n]: "
+    ).strip().lower()
+
+    if respuesta not in ["s", "si", "sí"]:
+        raise FileNotFoundError(
+            "No se puede ejecutar SAM sin el checkpoint."
+        )
+
+    checkpoint_path.parent.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    print("\nDescargando SAM ViT-B...")
+    print(f"Destino: {checkpoint_path}")
+
+    urlretrieve(
+        SAM_URL,
+        checkpoint_path
+    )
+
+    print(
+        "\nModelo SAM descargado correctamente."
+    )
+
+    return checkpoint_path
+
+
+
+# Cargar modelo
+
 
 def cargar_modelo(checkpoint_path, device):
     """
-    carga el modelo SAM utilizando VIT-b
+    Carga el modelo SAM ViT-B.
+
+    Retorna:
+        SamPredictor
     """
+
+    checkpoint_path = Path(checkpoint_path)
+
     if not checkpoint_path.exists():
-        raise FileNotFoundError(f"No se encontró el modelo SAM: {checkpoint_path}")
+        raise FileNotFoundError(
+            f"No se encontró el modelo SAM: "
+            f"{checkpoint_path}"
+        )
 
-    print(f"Cargando modelo SAM")
+    print("\nCargando modelo SAM ViT-B...")
 
-    sam = sam_model_registry["vit_b"](checkpoint=str(checkpoint_path))
-    sam.to(device=device)
+    sam = sam_model_registry["vit_b"](
+        checkpoint=str(checkpoint_path)
+    )
 
-    predictor = SamPredictor(sam)
+    sam.to(
+        device=device
+    )
 
-    print(f"Modelo SAM cargado.")
+    predictor = SamPredictor(
+        sam
+    )
+
+    print(
+        "Modelo SAM cargado correctamente."
+    )
+
     return predictor
 
 
-def generar_mascaras(predictor, imagen):
+
+# Preparar imagen
+
+
+def preparar_imagen(
+    imagen,
+    percentil_min=1.0,
+    percentil_max=99.5,
+    asinh_scale=10.0
+):
     """
-    Genera máscaras utilizando SAM.
+    Convierte una imagen científica 2D
+    en una imagen RGB uint8 compatible con SAM.
+
+    Se utiliza normalización por percentiles
+    y transformación asinh para mejorar
+    la visualización de estructuras débiles.
     """
 
-    sam = predictor.model
-
-    mask_generator = SamAutomaticMaskGenerator(
-        model=sam,
-        points_per_side=32,
-        pred_iou_thresh=0.86,
-        stability_score_thresh=0.92,
-        min_mask_region_area=100
+    imagen = np.asarray(
+        imagen,
+        dtype=np.float32
     )
 
-    print("Generando máscaras con SAM...")
+    # Eliminar valores inválidos
+    imagen = np.nan_to_num(
+        imagen,
+        nan=0.0,
+        posinf=0.0,
+        neginf=0.0
+    )
 
-    masks = mask_generator.generate(imagen)
+    # Calcular percentiles
+    minimo = np.percentile(
+        imagen,
+        percentil_min
+    )
+
+    maximo = np.percentile(
+        imagen,
+        percentil_max
+    )
+
+    if maximo <= minimo:
+        raise ValueError(
+            "No es posible normalizar la imagen: "
+            "el máximo debe ser mayor que el mínimo."
+        )
+
+    # Recortar valores extremos
+    imagen = np.clip(
+        imagen,
+        minimo,
+        maximo
+    )
+
+    # Normalizar entre 0 y 1
+    imagen = (
+        imagen - minimo
+    ) / (
+        maximo - minimo
+    )
+
+    # Transformación asinh
+    imagen = (
+        np.arcsinh(
+            asinh_scale * imagen
+        )
+        / np.arcsinh(
+            asinh_scale
+        )
+    )
+
+    # Convertir a uint8
+    imagen = (
+        imagen * 255
+    ).astype(
+        np.uint8
+    )
+
+    # Convertir escala de grises a RGB
+    imagen_rgb = np.stack(
+        [
+            imagen,
+            imagen,
+            imagen
+        ],
+        axis=-1
+    )
+
+    return imagen_rgb
+
+
+
+# Reducir imagen
+
+
+def reducir_imagen_para_sam(
+    imagen,
+    max_size=1500
+):
+    """
+    Reduce el tamaño de una imagen manteniendo
+    su proporción.
+    """
+
+    import cv2
+
+    imagen = np.asarray(
+        imagen
+    )
+
+    altura, ancho = imagen.shape[:2]
+
+    escala = min(
+        max_size / ancho,
+        max_size / altura
+    )
+
+    # Si ya es suficientemente pequeña,
+    # no modificarla.
+    if escala >= 1:
+        return (
+            imagen,
+            1.0
+        )
+
+    nuevo_ancho = int(
+        ancho * escala
+    )
+
+    nueva_altura = int(
+        altura * escala
+    )
+
+    imagen_reducida = cv2.resize(
+        imagen,
+        (
+            nuevo_ancho,
+            nueva_altura
+        ),
+        interpolation=cv2.INTER_AREA
+    )
+
+    print(
+        f"Imagen reducida para SAM: "
+        f"{ancho}x{altura} -> "
+        f"{nuevo_ancho}x{nueva_altura}"
+    )
+
+    return (
+        imagen_reducida,
+        escala
+    )
+
+
+
+# Convertir coordenadas
+
+
+def convertir_coordenadas(
+    x,
+    y,
+    escala
+):
+    """
+    Convierte coordenadas de la imagen original
+    a coordenadas de la imagen utilizada por SAM.
+    """
+
+    if escala <= 0:
+        raise ValueError(
+            "La escala debe ser mayor que cero."
+        )
+
+    return [
+        x * escala,
+        y * escala
+    ]
+
+
+
+# Segmentacion interactiva
+
+
+def segmentar_disco(
+    predictor,
+    imagen,
+    puntos,
+    etiquetas
+):
+    """
+    Segmenta una estructura utilizando SAM.
+
+    """
+
+    if len(puntos) == 0:
+        raise ValueError(
+            "Debe existir al menos un punto."
+        )
+
+    if len(puntos) != len(etiquetas):
+        raise ValueError(
+            "La cantidad de puntos y etiquetas "
+            "debe ser igual."
+        )
+
+    puntos = np.asarray(
+        puntos,
+        dtype=np.float32
+    )
+
+    etiquetas = np.asarray(
+        etiquetas,
+        dtype=np.int32
+    )
+
+    # Las etiquetas permitidas por SAM
+    # son 0 (negativo) y 1 (positivo).
+    if not np.all(
+        np.isin(
+            etiquetas,
+            [0, 1]
+        )
+    ):
+        raise ValueError(
+            "Las etiquetas deben ser 0 o 1."
+        )
+
+    # Preparar imagen para SAM
+    predictor.set_image(
+        imagen
+    )
+
+    # Ejecutar predicción
+    masks, scores, _ = predictor.predict(
+        point_coords=puntos,
+        point_labels=etiquetas,
+        multimask_output=True
+    )
+
+    # Seleccionar la máscara con mejor score
+    mejor_indice = int(
+        np.argmax(scores)
+    )
+
+    print(
+        "\nScores de SAM:",
+        scores
+    )
+
+    print(
+        "Mejor score:",
+        scores[mejor_indice]
+    )
+
+    return {
+        "mask": masks[mejor_indice],
+        "score": float(
+            scores[mejor_indice]
+        ),
+        "all_masks": masks,
+        "all_scores": scores
+    }
+
+
+# ==========================================================
+# SEGMENTACIÓN AUTOMÁTICA
+# ==========================================================
+
+def generar_mascaras(
+    predictor,
+    imagen,
+    points_per_side=32,
+    pred_iou_thresh=0.75,
+    stability_score_thresh=0.85,
+    min_mask_region_area=50,
+    crop_n_layers=1
+):
+    """
+    Genera máscaras automáticamente utilizando SAM.
+
+    Esta función permite explorar automáticamente
+    las estructuras presentes en la imagen.
+    """
+
+    mask_generator = SamAutomaticMaskGenerator(
+        model=predictor.model,
+        points_per_side=points_per_side,
+        pred_iou_thresh=pred_iou_thresh,
+        stability_score_thresh=stability_score_thresh,
+        min_mask_region_area=min_mask_region_area,
+        crop_n_layers=crop_n_layers
+    )
+
+    print(
+        "\nGenerando máscaras automáticamente..."
+    )
+
+    masks = mask_generator.generate(
+        imagen
+    )
 
     print(
         f"SAM generó {len(masks)} máscaras."
@@ -47,88 +419,50 @@ def generar_mascaras(predictor, imagen):
 
     return masks
 
-def preparar_imagen(imagen):
+
+
+# Ordenar máscaras
+
+
+def ordenar_mascaras(
+    masks,
+    criterio="predicted_iou"
+):
     """
-    Convierte la imagen 2D del fits a una imagen RGB compatible con SAM.
+    Ordena las máscaras según un criterio.
+
+    Criterios disponibles:
+        predicted_iou
+        stability_score
+        area
     """
-    imagen = np.asarray(imagen, dtype=np.float32)
 
-    #Reemplaza NaN e infinitos
-    imagen = np.nan_to_num(imagen, nan=0.0, posinf=0.0, neginf=0.0)
+    if criterio == "predicted_iou":
 
-    #Percentiles para que los valores extremos no dominen la normalización
-    minimo = np.percentile(imagen, 1)
-    maximo = np.percentile(imagen, 99)
-
-    if maximo <= minimo:
-        raise ValueError("El valor máximo debe ser mayor que el mínimo para la normalización.")
-
-    imagen = np.clip(imagen, minimo, maximo)
-
-    #Normalizacion
-    imagen = (imagen - minimo) / (maximo - minimo) * 255
-
-    imagen = imagen.astype(np.uint8)
-
-    #Convertir a RGB
-    imagen_rgb = np.stack([imagen] * 3, axis=-1)
-
-    return imagen_rgb
-
-def segmentar_disco(predictor, imagen):
-    """
-    Segmenta el disco de la imagen utilizando SAM.
-    """
-    predictor.set_image(imagen)
-
-    # Definir un punto de referencia en el centro de la imagen
-    altura, ancho = imagen.shape[:2]
-    punto = np.array([[ancho // 2, altura // 2]])
-    etiqueta = np.array([1])
-
-    masks, scores, _ = predictor.predict(
-        point_coords = punto,
-        point_labels = etiqueta,
-        multimask_output = True
-    )
-
-    mejor_indice = np.argmax(scores)
-    mejor_mascara = masks[mejor_indice]
-
-    print("Scores de SAM:", scores)
-
-    print("Mejor score:", scores[mejor_indice])
-
-    return mejor_mascara
-
-def guardar_mascara(mask, output_path):
-    """
-    Guarda la máscara.
-    """
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    np.save(output_path, mask)
-
-    print(f"Máscara guardada en: {output_path}")
-
-def visualizar_mascaras(imagen, masks):
-
-    plt.figure(figsize=(10, 10))
-
-    plt.imshow(imagen)
-
-    for mask in masks:
-
-        mascara = mask["segmentation"]
-
-        plt.contour(
-            mascara,
-            levels=[0.5]
+        return sorted(
+            masks,
+            key=lambda x: x["predicted_iou"],
+            reverse=True
         )
 
-    plt.title(
-        "Estructuras detectadas por SAM"
-    )
+    elif criterio == "stability_score":
 
-    plt.axis("off")
+        return sorted(
+            masks,
+            key=lambda x: x["stability_score"],
+            reverse=True
+        )
 
-    plt.show()
+    elif criterio == "area":
+
+        return sorted(
+            masks,
+            key=lambda x: x["area"],
+            reverse=True
+        )
+
+    else:
+
+        raise ValueError(
+            f"Criterio desconocido: {criterio}"
+        )
