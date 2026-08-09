@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import argparse
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -14,6 +15,53 @@ from src.segmentacion.sam_segmentacion import (
     generar_mascaras,
     ordenar_mascaras,
 )
+
+
+def elegir_dispositivo(
+    device_preference="auto",
+    min_gpu_memory_gb=6.0,
+):
+    """
+    Selecciona el dispositivo de ejecución para SAM.
+
+    - auto: usa GPU si existe y cumple el umbral de memoria.
+    - cuda/gpu: fuerza GPU y falla si no hay GPU o no hay memoria suficiente.
+    - cpu: fuerza CPU.
+    """
+
+    opción = device_preference.lower()
+
+    if opción == "cpu":
+        return torch.device("cpu")
+
+    if opción in {"cuda", "gpu"}:
+        if not torch.cuda.is_available():
+            raise RuntimeError(
+                "No se detectó GPU disponible para el modo 'cuda'."
+            )
+        props = torch.cuda.get_device_properties(0)
+        memoria_gb = props.total_memory / 1024**3
+        if memoria_gb < min_gpu_memory_gb:
+            raise RuntimeError(
+                f"GPU detectada con {memoria_gb:.1f} GB, "
+                f"menor que el umbral {min_gpu_memory_gb:.1f} GB."
+            )
+        return torch.device("cuda")
+
+    if torch.cuda.is_available():
+        props = torch.cuda.get_device_properties(0)
+        memoria_gb = props.total_memory / 1024**3
+        if memoria_gb >= min_gpu_memory_gb:
+            print(
+                f"GPU detectada con {memoria_gb:.1f} GB, suficiente para usar cuda."
+            )
+            return torch.device("cuda")
+        print(
+            f"GPU detectada con {memoria_gb:.1f} GB, menor que el umbral {min_gpu_memory_gb:.1f} GB; usando cpu."
+        )
+
+    return torch.device("cpu")
+
 
 # Connfiguracion
 
@@ -248,17 +296,38 @@ def main():
 
 
     # 1. Seleccionar dispositivo
-  
 
-    device = torch.device(
-        "cuda"
-        if torch.cuda.is_available()
-        else "cpu"
+    parser = argparse.ArgumentParser(
+        description="Demo de segmentación SAM con selección de CPU/GPU"
+    )
+    parser.add_argument(
+        "--device",
+        choices=["auto", "cpu", "cuda", "gpu"],
+        default="auto",
+        help=(
+            "Dispositivo de ejecución: auto, cpu, cuda o gpu. "
+            "En modo auto, la GPU solo se usa si supera el umbral."
+        ),
+    )
+    parser.add_argument(
+        "--min-gpu-memory-gb",
+        type=float,
+        default=6.0,
+        help="Memoria mínima de GPU en GB para usar cuda en modo auto.",
+    )
+    args = parser.parse_args()
+
+    device = elegir_dispositivo(
+        device_preference=args.device,
+        min_gpu_memory_gb=args.min_gpu_memory_gb,
     )
 
     print()
     print(
         f"Dispositivo utilizado: {device}"
+    )
+    print(
+        f"Modo: {args.device}, umbral GPU: {args.min_gpu_memory_gb:.1f} GB"
     )
 
 
