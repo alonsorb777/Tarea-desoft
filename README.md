@@ -8,10 +8,15 @@ Este programa permite identificar y caracterizar estructuras (anillos, gaps, asi
 ## Objetivos
 
 -Integrar modelo de SAM ya entrenado
+
 -Cargar las imágenes .fits de los discos desde DSHARP
+
 -Integrar el modelo SAM para realizar la segmentación 
+
 -Poder guardar máscaras ya generadas
+
 -Visualización de imágenes mediante interfaz gráfica
+
 -Acercar la SAM con investigadores y estudiantes
 
 ## Tecnologías
