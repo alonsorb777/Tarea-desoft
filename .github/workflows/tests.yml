@@ -17,12 +17,21 @@ jobs:
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.11"
+
+      - name: Instalar PyTorch
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch torchvision
 
       - name: Instalar dependencias
         run: |
           python -m pip install --upgrade pip
-          pip install astropy matplotlib notebook numpy pandas pytest
+          pip install astropy matplotlib notebook numpy pandas pytest opencv-python
+
+      - name: Instalar Segment Anything
+        run: |
+          pip install git+https://github.com/facebookresearch/segment-anything.git
 
       - name: Ejecutar tests
         run: python -m pytest
