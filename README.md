@@ -21,9 +21,16 @@ Este programa permite identificar y caracterizar estructuras (anillos, gaps, asi
 -Matplotlib
 -Segment Anything (SAM)
 -Git y GitHub
+-Pytest
+-Torch
 
 Cliente: Sebastán Peréz. Academico de la Universidad De Santiago especializado en formación exo-planetaria.
 
-Estado del Desarrollo: Sprint 1.
+Como utilizarlo:
+- Colocar la el archivo que se desea analizar en la carpeta de data
+- En scr/main.py ingresar la ruta del archivo que se desea analizar
+- Ejecutar main.py
+
+Estado del Desarrollo: Sprint 2.
 
 ### Colaboradores: Christian Álvarez, Lindsay Rincón Torres, Alonso Robredo Bovet, Simona Serqueira y Sebastián Torres Carrasco.
