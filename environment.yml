@@ -10,3 +10,4 @@ dependencies:
   - notebook
   - numpy
   - pandas
+  - requests
