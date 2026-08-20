@@ -2,7 +2,7 @@ from fits_loader import cargar_fits
 from visualization import mostrar_imagen
 
 
-archivo = "data/AS209_continuum.fits"
+archivo = "data/HD163296_continuum.fits"
 
 imagen = cargar_fits(archivo)
 
