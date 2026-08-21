@@ -3,7 +3,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import sys
 
 from src.fits_loader import cargar_fits
 
@@ -19,32 +18,14 @@ from src.segmentacion.sam_segmentacion import (
 # Connfiguracion
 
 
-OBJETIVOS_DISPONIBLES = [
-    "AS209",
-    "HD163296"
-]
-
-OBJETIVO = sys.argv[1] if len(sys.argv) > 1 else "AS209"
-
-if OBJETIVO not in OBJETIVOS_DISPONIBLES:
-    raise ValueError(
-        f"Objeto no disponible: {OBJETIVO}. "
-        f"Opciones disponibles: {', '.join(OBJETIVOS_DISPONIBLES)}"
-    )
-
 ARCHIVO_FITS = Path(
-    f"data/{OBJETIVO}_continuum.fits"
+    "data/AS209_continuum.fits"
 )
-
-if not ARCHIVO_FITS.exists():
-    raise FileNotFoundError(
-        f"No se encontró el archivo FITS de {OBJETIVO}: "
-        f"{ARCHIVO_FITS}"
-    )
 
 CHECKPOINT_SAM = Path(
     "models/sam_vit_b_01ec64.pth"
 )
+
 
 
 # Preparar imagen para visualización
@@ -152,7 +133,7 @@ def visualizar_resultados(
     )
 
     axes[0].set_title(
-        f"{OBJETIVO} - Imagen DSHARP"
+        "AS 209 - Imagen DSHARP"
     )
 
     axes[0].set_xlabel(
@@ -262,7 +243,7 @@ def mostrar_informacion_mascaras(
 def main():
 
     print("=" * 60)
-    print(f"DEMO DE SEGMENTACIÓN SAM - {OBJETIVO}")
+    print("DEMO DE SEGMENTACIÓN SAM - AS 209")
     print("=" * 60)
 
 

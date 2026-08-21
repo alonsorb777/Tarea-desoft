@@ -376,9 +376,9 @@ def segmentar_disco(
     }
 
 
-# ==========================================================
-# SEGMENTACIÓN AUTOMÁTICA
-# ==========================================================
+
+# Segmentación automática
+
 
 def generar_mascaras(
     predictor,
@@ -466,3 +466,64 @@ def ordenar_mascaras(
         raise ValueError(
             f"Criterio desconocido: {criterio}"
         )
+
+def segmentar_objeto(
+    imagen,
+    checkpoint_path,
+    device,
+    max_size=1500,
+    points_per_side=32,
+    pred_iou_thresh=0.75,
+    stability_score_thresh=0.85,
+    min_mask_region_area=50,
+    crop_n_layers=1
+):
+    """
+    Ejecuta el proceso completo de segmentación automática
+    sobre una imagen FITS.
+
+    Recibe:
+        imagen: imagen 2D cargada desde un archivo FITS.
+        checkpoint_path: ruta al modelo SAM.
+        device: dispositivo utilizado (cpu o cuda).
+
+    Retorna:
+        masks: lista de máscaras generadas por SAM.
+        imagen_sam: imagen RGB utilizada por SAM.
+        escala: escala aplicada al reducir la imagen.
+    """
+
+    # Preparar imagen
+    imagen_rgb = preparar_imagen(
+        imagen
+    )
+
+    # Reducir tamaño
+    imagen_sam, escala = reducir_imagen_para_sam(
+        imagen_rgb,
+        max_size=max_size
+    )
+
+    # Obtener checkpoint
+    checkpoint = obtener_checkpoint(
+        checkpoint_path
+    )
+
+    # Cargar modelo
+    predictor = cargar_modelo(
+        checkpoint,
+        device
+    )
+
+    # Generar máscaras
+    masks = generar_mascaras(
+        predictor,
+        imagen_sam,
+        points_per_side=points_per_side,
+        pred_iou_thresh=pred_iou_thresh,
+        stability_score_thresh=stability_score_thresh,
+        min_mask_region_area=min_mask_region_area,
+        crop_n_layers=crop_n_layers
+    )
+
+    return masks, imagen_sam, escala
