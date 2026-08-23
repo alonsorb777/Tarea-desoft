@@ -1,3 +1,11 @@
+import sys
+from pathlib import Path
+
+# 1. Agregar la raíz del proyecto PRIMERO que todo para que no se caiga la pagina web de Streamlit al importar src/
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
 import os
 import glob
 import io
@@ -7,9 +15,6 @@ import matplotlib.pyplot as plt
 import streamlit as st
 import torch
 from astropy.io import fits
-
-import sys
-import os
 
 # Agregar la raíz del proyecto a sys.path para que Streamlit detecte la carpeta src/
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
