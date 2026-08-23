@@ -8,6 +8,23 @@ import streamlit as st
 import torch
 from astropy.io import fits
 
+import sys
+import os
+
+# Agregar la raíz del proyecto a sys.path para que Streamlit detecte la carpeta src/
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+# Importaciones posteriores de src/
+from src.descarga import descargar_continuum_dsharp, DEFAULT_DATA_DIR
+from src.segmentacion.sam_segmentacion import (
+    obtener_checkpoint,
+    cargar_modelo,
+    preparar_imagen,
+    reducir_imagen_para_sam,
+    generar_mascaras,
+    ordenar_mascaras
+)
+
 # -------------------------------
 # Importación de módulos de src/
 # -------------------------------
