@@ -1,15 +1,5 @@
 import sys
 from pathlib import Path
-import os
-
-# 1. Agregar la raíz del proyecto PRIMERO que todo para que no se caiga la pagina web de Streamlit al importar src/
-ROOT_DIR = Path(__file__).resolve().parent.parent
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
-
-#por si la web quiere seguir dando problemas, asegurarse de que existan las carpetas de datos y modelos
-os.makedirs(ROOT_DIR / "data", exist_ok=True)
-os.makedirs(ROOT_DIR / "models", exist_ok=True)
 
 import os
 import glob
@@ -38,38 +28,6 @@ from src.segmentacion.sam_segmentacion import (
     ordenar_mascaras
 )
 
-import cv2
-
-def dibujar_contornos_mascaras(imagen_base, mascaras, top_n=10):
-    plt.style.use('dark_background')
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7))
-    fig.patch.set_facecolor('#0b0e14')
-    
-    # Subplot Izquierdo
-    ax1.imshow(imagen_base, cmap='gray')
-    ax1.set_title("AS209_continuum - Imagen DSHARP", fontsize=12, color='white')
-    ax1.set_xlabel("Píxeles")
-    ax1.set_ylabel("Píxeles")
-    
-    # Subplot Derecho
-    ax2.imshow(imagen_base, cmap='gray')
-    mascaras_top = mascaras[:top_n]
-    colores = plt.cm.get_cmap('tab10', top_n)
-    
-    for idx, mask_info in enumerate(mascaras_top):
-        mask_binary = mask_info['segmentation'].astype(np.uint8)
-        contours, _ = cv2.findContours(mask_binary, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        color = colores(idx)[:3]
-        for contour in contours:
-            contour = contour.squeeze()
-            if len(contour.shape) == 2:
-                ax2.plot(contour[:, 0], contour[:, 1], color=color, linewidth=1.5)
-                
-    ax2.set_title(f"Top {top_n} máscaras SAM", fontsize=12, color='white')
-    ax2.set_xlabel("Píxeles")
-    ax2.set_ylabel("Píxeles")
-    plt.tight_layout()
-    return fig
 
 # 1. Configuración de la página y estilo 
 st.set_page_config(
@@ -274,12 +232,12 @@ if "masks" in st.session_state:
     ax[1].set_facecolor(DARK_BG)
     ax[1].imshow(rgb_display, origin='lower')
     
-    # Paleta de colores cálidos estilo café / espresso / latte
-    latte_colors = ["#FFF8E7", "#f4e1d2", "#e6ccb2", "#ddb892", "#b08968", "#7f5539", "#9c6644", "#d4a373", "#ccd5ae", "#e9edc9"]
+   # Paleta de colores neón y contrastantes
+    colores_vibrantes = ["#FF5733", "#33FF57", "#3357FF", "#FF33F5", "#00FFFF", "#FFD700", "#FF8C00", "#9932CC", "#FF1493", "#00FF7F"]
 
     for idx, m_id in enumerate(selected_ids):
         mask_bin = masks[m_id - 1]["segmentation"]
-        color = latte_colors[idx % len(latte_colors)]
+        color = colores_vibrantes[idx % len(colores_vibrantes)]
         ax[1].contour(mask_bin, levels=[0.5], colors=[color], linewidths=1.3, origin='lower')
 
     ax[1].set_title(f"Top {len(selected_ids)} máscaras SAM", color=COSMIC_LATTE, fontsize=12, pad=10)
