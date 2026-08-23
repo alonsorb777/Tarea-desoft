@@ -208,7 +208,7 @@ if "masks" in st.session_state:
     
     # Subplot 1: Imagen Original DSHARP
     ax[0].set_facecolor('#0b0d17')
-    ax[0].imshow(rgb_display)
+    ax[0].imshow(rgb_display,origin="lower")
     ax[0].set_title(f"{nombre_disco} - Imagen DSHARP", color='white', fontsize=12, pad=10)
     ax[0].set_xlabel("Píxeles", color='white')
     ax[0].set_ylabel("Píxeles", color='white')
@@ -216,7 +216,7 @@ if "masks" in st.session_state:
 
     # Subplot 2: Máscaras SAM dibujadas por CONTORNOS
     ax[1].set_facecolor('#0b0d17')
-    ax[1].imshow(rgb_display)
+    ax[1].imshow(rgb_display, origin="lower")
     
     # Paleta de colores para diferenciar los contornos de cada máscara
     cmap = plt.colormaps["tab10"]
