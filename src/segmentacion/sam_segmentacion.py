@@ -395,8 +395,8 @@ def generar_mascaras(
     predictor,
     imagen,
     points_per_side=32,
-    pred_iou_thresh=0.70,
-    stability_score_thresh=0.70,
+    pred_iou_thresh=0.50,
+    stability_score_thresh=0.50,
     min_mask_region_area=100,
     crop_n_layers=0
 ):
