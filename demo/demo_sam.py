@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+import os
 
 # 1. Agregar la raíz del proyecto PRIMERO que todo para que no se caiga la pagina web de Streamlit al importar src/
 ROOT_DIR = Path(__file__).resolve().parent.parent
