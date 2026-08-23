@@ -23,28 +23,31 @@ from src.segmentacion.sam_segmentacion import (
 
 # 1. Configuración de la página y estilo 
 st.set_page_config(
-    page_title="ALMA + SAM Protoplanetary Analyzer", 
+    page_title="ALMA + SAM Analisis de discos protoplanetarios", 
     page_icon="🌌",
     layout="wide"
 )
 
-# Estilo personalizado: Fondo cósmico oscuro y letras claras
+# Estilo personalizado: Inspirado en el latte cosmico.
 st.markdown("""
     <style>
     .stApp {
-        background-color: #0b0d17;
-        color: #e2e8f0;
+        background-color: #0d0c10;
+        color: #FFF8E7;
     }
     .stSidebar {
-        background-color: #151928;
+        background-color: #16141c;
     }
     h1, h2, h3 {
-        color: #38bdf8 !important;
-        font-family: 'Trebuchet MS', sans-serif;
+        color: #FFF8E7 !important;
+        font-family: 'Georgia', serif;
+    }
+    stCaption, .stCaption p {
+        color: #d4c5b9 !important;
     }
     .stButton>button {
-        background: linear-gradient(90deg, #4f46e5 0%, #06b6d4 100%);
-        color: white;
+        background: linear-gradient(90deg, #d4a373 0%, #FFF8E7 100%);
+        color: #1a1412;
         border: none;
         border-radius: 8px;
         font-weight: bold;
@@ -203,37 +206,39 @@ if "masks" in st.session_state:
         )
         st.dataframe(df_stats, width='stretch')
 
-    # Configuración de figura con estilo astrofísico
-    fig, ax = plt.subplots(1, 2, figsize=(12, 6), facecolor='#0b0d17')
+    # Figura estilo Latte Cósmico (#FFF8E7)
+    COSMIC_LATTE = "#FFF8E7"
+    DARK_BG = "#0d0c10"
+
+    fig, ax = plt.subplots(1, 2, figsize=(12, 6), facecolor=DARK_BG)
     
     # Subplot 1: Imagen Original DSHARP
-    ax[0].set_facecolor('#0b0d17')
-    ax[0].imshow(rgb_display,origin="lower")
-    ax[0].set_title(f"{nombre_disco} - Imagen DSHARP", color='white', fontsize=12, pad=10)
-    ax[0].set_xlabel("Píxeles", color='white')
-    ax[0].set_ylabel("Píxeles", color='white')
-    ax[0].tick_params(colors='white')
+    ax[0].set_facecolor(DARK_BG)
+    ax[0].imshow(rgb_display, origin='lower')
+    ax[0].set_title(f"{nombre_disco} - Imagen DSHARP", color=COSMIC_LATTE, fontsize=12, pad=10)
+    ax[0].set_xlabel("Píxeles", color=COSMIC_LATTE)
+    ax[0].set_ylabel("Píxeles", color=COSMIC_LATTE)
+    ax[0].tick_params(colors=COSMIC_LATTE)
 
-    # Subplot 2: Máscaras SAM dibujadas por CONTORNOS
-    ax[1].set_facecolor('#0b0d17')
-    ax[1].imshow(rgb_display, origin="lower")
+    # Subplot 2: Contornos de las máscaras
+    ax[1].set_facecolor(DARK_BG)
+    ax[1].imshow(rgb_display, origin='lower')
     
-    # Paleta de colores para diferenciar los contornos de cada máscara
-    cmap = plt.colormaps["tab10"]
+    # Paleta de colores cálidos estilo café / espresso / latte
+    latte_colors = ["#FFF8E7", "#f4e1d2", "#e6ccb2", "#ddb892", "#b08968", "#7f5539", "#9c6644", "#d4a373", "#ccd5ae", "#e9edc9"]
 
     for idx, m_id in enumerate(selected_ids):
         mask_bin = masks[m_id - 1]["segmentation"]
-        color = cmap(idx % 10)
-        # Dibujar ÚNICAMENTE los contornos/bordes (sin rellenar sólido)
-        ax[1].contour(mask_bin, levels=[0.5], colors=[color], linewidths=1.2)
+        color = latte_colors[idx % len(latte_colors)]
+        ax[1].contour(mask_bin, levels=[0.5], colors=[color], linewidths=1.3, origin='lower')
 
-    ax[1].set_title(f"Top {len(selected_ids)} máscaras SAM", color='white', fontsize=12, pad=10)
-    ax[1].set_xlabel("Píxeles", color='white')
-    ax[1].set_ylabel("Píxeles", color='white')
-    ax[1].tick_params(colors='white')
+    ax[1].set_title(f"Top {len(selected_ids)} máscaras SAM", color=COSMIC_LATTE, fontsize=12, pad=10)
+    ax[1].set_xlabel("Píxeles", color=COSMIC_LATTE)
+    ax[1].set_ylabel("Píxeles", color=COSMIC_LATTE)
+    ax[1].tick_params(colors=COSMIC_LATTE)
 
     plt.tight_layout()
-
+    
     with col2:
         st.write("### 🔭 Comparativa Visual")
         st.pyplot(fig)
