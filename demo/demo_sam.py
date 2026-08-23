@@ -1,25 +1,16 @@
-import sys
-from pathlib import Path
-
-from matplotlib.colors import ListedColormap
-
 import os
 import glob
 import io
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib as mpl
 import streamlit as st
 import torch
 from astropy.io import fits
 
-# Agregar la raíz del proyecto a sys.path para que Streamlit detecte la carpeta src/
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-# -------------------------------
-# Importación de módulos de src/
-# -------------------------------
+# ------------------------------
+# Importacion de modulos de src/ 
+# ------------------------------
 from src.descarga import descargar_continuum_dsharp, DEFAULT_DATA_DIR
 from src.segmentacion.sam_segmentacion import (
     obtener_checkpoint,
@@ -30,15 +21,14 @@ from src.segmentacion.sam_segmentacion import (
     ordenar_mascaras
 )
 
-
 # 1. Configuración de la página y estilo 
 st.set_page_config(
-    page_title="ALMA + SAM Analisis de discos protoplanetarios", 
+    page_title="ALMA + SAM Analizador de Discos Protoplanetarios", 
     page_icon="🌌",
     layout="wide"
 )
 
-# Estilo personalizado: Inspirado en el latte cosmico.
+# Estilo personalizado: Fondo cósmico oscuro y letras claras
 st.markdown("""
     <style>
     .stApp {
@@ -49,15 +39,12 @@ st.markdown("""
         background-color: #16141c;
     }
     h1, h2, h3 {
-        color: #FFF8E7 !important;
-        font-family: 'Georgia', serif;
-    }
-    stCaption, .stCaption p {
-        color: #d4c5b9 !important;
+        color: #38bdf8 !important;
+        font-family: 'Trebuchet MS', sans-serif;
     }
     .stButton>button {
-        background: linear-gradient(90deg, #d4a373 0%, #FFF8E7 100%);
-        color: #1a1412;
+        background: linear-gradient(90deg, #4f46e5 0%, #06b6d4 100%);
+        color: white;
         border: none;
         border-radius: 8px;
         font-weight: bold;
@@ -73,9 +60,9 @@ def reproducir_sonido_exito():
             <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
         </audio>
     """
-    st.html(sound_html)
+    st.components.v1.html(sound_html, height=0)
 
-# Helper: Filtrar fondo y retener Top 10 máscaras más relevantes según el criterio de ordenamiento
+# Helper: Filtrar fondo y retener Top 10
 def filtrar_y_limitar_mascaras(masks, max_area_ratio=0.40, top_n=10):
     if not masks:
         return []
@@ -88,7 +75,7 @@ def filtrar_y_limitar_mascaras(masks, max_area_ratio=0.40, top_n=10):
             mascaras_filtradas.append(m)
     return mascaras_filtradas[:top_n]
 
-# 2. CPU/GPU Selección automática y visualización del hardware activo
+# 2. cpu vs gpu
 @st.cache_resource
 def detectar_hardware():
     if torch.cuda.is_available():
@@ -151,7 +138,7 @@ if raw_fits_data is not None:
     while raw_fits_data.ndim > 2:
         raw_fits_data = raw_fits_data[0]
 
-# 4. Parametros y procesamiento de segmentación
+# 4. PARÁMETROS Y PROCESAMIENTO
 if fits_file_path is not None and raw_fits_data is not None:
     st.sidebar.header("⚙️ 2. Parámetros SAM")
     criterio_orden = st.sidebar.selectbox(
@@ -170,7 +157,7 @@ if fits_file_path is not None and raw_fits_data is not None:
 
             masks = generar_mascaras(predictor, rgb_reducida)
             masks_ordenadas = ordenar_mascaras(masks, criterio=criterio_orden)
-            masks_finales = masks_ordenadas[:10]
+            masks_finales = filtrar_y_limitar_mascaras(masks_ordenadas, max_area_ratio=0.40, top_n=10)
 
             st.session_state["masks"] = masks_finales
             st.session_state["rgb_display"] = rgb_reducida
@@ -185,7 +172,7 @@ if st.session_state.get("play_sound", False):
     reproducir_sonido_exito()
     st.session_state["play_sound"] = False
 
-# 5. VVizualizacion interactiva de resultados
+# 5. VISUALIZACIÓN INTERACTIVA Y EXPORTACIÓN
 if "masks" in st.session_state:
     masks = st.session_state["masks"]
     rgb_display = st.session_state["rgb_display"]
@@ -214,40 +201,27 @@ if "masks" in st.session_state:
             options=df_stats["ID Máscara"].tolist(),
             default=df_stats["ID Máscara"].tolist()
         )
-        st.dataframe(df_stats, width='stretch')
+        st.dataframe(df_stats, use_container_width=True)
 
-    # Figura estilo Latte Cósmico (#FFF8E7)
-    COSMIC_LATTE = "#FFF8E7"
-    DARK_BG = "#0d0c10"
-    # Paleta de colores neón y contrastantes
-    colores_vibrantes = ["#FF5733", "#33FF57", "#3357FF", "#FF33F5", "#00FFFF", "#FFD700", "#FF8C00", "#9932CC", "#FF1493", "#00FF7F"]
-
-    fig, ax = plt.subplots(1, 2, figsize=(12, 6), facecolor=DARK_BG)
+    # Preparar figura para visualización y posterior exportación
+    fig, ax = plt.subplots(1, 2, figsize=(10, 5), facecolor='#0b0d17')
     
-    # Subplot 1: Imagen Original DSHARP
-    ax[0].set_facecolor(DARK_BG)
-    ax[0].imshow(rgb_display, origin='lower')
-    ax[0].set_title(f"{nombre_disco} - Imagen DSHARP", color=COSMIC_LATTE, fontsize=12, pad=10)
-    ax[0].set_xlabel("Píxeles", color=COSMIC_LATTE)
-    ax[0].set_ylabel("Píxeles", color=COSMIC_LATTE)
-    ax[0].tick_params(colors=colores_vibrantes)
+    # Subplot 1: Original
+    ax[0].imshow(rgb_display)
+    ax[0].set_title(f"Original ({nombre_disco})", color='white')
+    ax[0].axis("off")
 
-    # Subplot 2: Contornos de las máscaras
-    ax[1].set_facecolor(DARK_BG)
-    ax[1].imshow(rgb_display, origin='lower')
-
-    for idx, m_id in enumerate(selected_ids):
+    # Subplot 2: Segmentada
+    overlay = np.zeros_like(rgb_display)
+    for m_id in selected_ids:
         mask_bin = masks[m_id - 1]["segmentation"]
-        color = colores_vibrantes[idx % len(colores_vibrantes)]
-        ax[1].contour(mask_bin, levels=[0.5], colors=[color], linewidths=1.3, origin='lower')
+        overlay[mask_bin] = [255, 120, 0]
 
-    ax[1].set_title(f"Top {len(selected_ids)} máscaras SAM", color=COSMIC_LATTE, fontsize=12, pad=10)
-    ax[1].set_xlabel("Píxeles", color=COSMIC_LATTE)
-    ax[1].set_ylabel("Píxeles", color=COSMIC_LATTE)
-    ax[1].tick_params(colors=colores_vibrantes)
+    ax[1].imshow(rgb_display)
+    ax[1].imshow(overlay, alpha=0.5)
+    ax[1].set_title("Estructuras Segmentadas", color='white')
+    ax[1].axis("off")
 
-    plt.tight_layout()
-    
     with col2:
         st.write("### 🔭 Comparativa Visual")
         st.pyplot(fig)
