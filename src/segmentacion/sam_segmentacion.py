@@ -397,7 +397,7 @@ def generar_mascaras(
     points_per_side=32,
     pred_iou_thresh=0.65,
     stability_score_thresh=0.70,
-    min_mask_region_area=10
+    min_mask_region_area=10,
     crop_n_layers=0
 ):
     """
