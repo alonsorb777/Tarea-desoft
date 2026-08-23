@@ -1,6 +1,8 @@
 import sys
 from pathlib import Path
 
+from matplotlib.colors import ListedColormap
+
 import os
 import glob
 import io
@@ -168,7 +170,7 @@ if fits_file_path is not None and raw_fits_data is not None:
 
             masks = generar_mascaras(predictor, rgb_reducida)
             masks_ordenadas = ordenar_mascaras(masks, criterio=criterio_orden)
-            masks_finales = filtrar_y_limitar_mascaras(masks_ordenadas, max_area_ratio=0.40, top_n=10)
+            masks_finales = masks_ordenadas[:10]
 
             st.session_state["masks"] = masks_finales
             st.session_state["rgb_display"] = rgb_reducida
@@ -217,6 +219,8 @@ if "masks" in st.session_state:
     # Figura estilo Latte Cósmico (#FFF8E7)
     COSMIC_LATTE = "#FFF8E7"
     DARK_BG = "#0d0c10"
+    # Paleta de colores neón y contrastantes
+    colores_vibrantes = ["#FF5733", "#33FF57", "#3357FF", "#FF33F5", "#00FFFF", "#FFD700", "#FF8C00", "#9932CC", "#FF1493", "#00FF7F"]
 
     fig, ax = plt.subplots(1, 2, figsize=(12, 6), facecolor=DARK_BG)
     
@@ -226,14 +230,11 @@ if "masks" in st.session_state:
     ax[0].set_title(f"{nombre_disco} - Imagen DSHARP", color=COSMIC_LATTE, fontsize=12, pad=10)
     ax[0].set_xlabel("Píxeles", color=COSMIC_LATTE)
     ax[0].set_ylabel("Píxeles", color=COSMIC_LATTE)
-    ax[0].tick_params(colors=COSMIC_LATTE)
+    ax[0].tick_params(colors=colores_vibrantes)
 
     # Subplot 2: Contornos de las máscaras
     ax[1].set_facecolor(DARK_BG)
     ax[1].imshow(rgb_display, origin='lower')
-    
-   # Paleta de colores neón y contrastantes
-    colores_vibrantes = ["#FF5733", "#33FF57", "#3357FF", "#FF33F5", "#00FFFF", "#FFD700", "#FF8C00", "#9932CC", "#FF1493", "#00FF7F"]
 
     for idx, m_id in enumerate(selected_ids):
         mask_bin = masks[m_id - 1]["segmentation"]
@@ -243,7 +244,7 @@ if "masks" in st.session_state:
     ax[1].set_title(f"Top {len(selected_ids)} máscaras SAM", color=COSMIC_LATTE, fontsize=12, pad=10)
     ax[1].set_xlabel("Píxeles", color=COSMIC_LATTE)
     ax[1].set_ylabel("Píxeles", color=COSMIC_LATTE)
-    ax[1].tick_params(colors=COSMIC_LATTE)
+    ax[1].tick_params(colors=colores_vibrantes)
 
     plt.tight_layout()
     
