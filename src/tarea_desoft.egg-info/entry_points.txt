@@ -1,0 +1,2 @@
+[console_scripts]
+demo = demo.demo_sam:main

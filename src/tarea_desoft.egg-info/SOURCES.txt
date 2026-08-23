@@ -1,0 +1,17 @@
+README.md
+pyproject.toml
+src/__init__.py
+src/descarga.py
+src/fits_loader.py
+src/main.py
+src/visualization.py
+src/segmentacion/sam_segmentacion.py
+src/tarea_desoft.egg-info/PKG-INFO
+src/tarea_desoft.egg-info/SOURCES.txt
+src/tarea_desoft.egg-info/dependency_links.txt
+src/tarea_desoft.egg-info/entry_points.txt
+src/tarea_desoft.egg-info/requires.txt
+src/tarea_desoft.egg-info/top_level.txt
+src/tests/test_fits_loader.py
+src/tests/test_visualization.py
+tests/test_sam.py

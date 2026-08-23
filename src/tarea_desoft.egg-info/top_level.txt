@@ -1,0 +1,7 @@
+__init__
+descarga
+fits_loader
+main
+segmentacion
+tests
+visualization

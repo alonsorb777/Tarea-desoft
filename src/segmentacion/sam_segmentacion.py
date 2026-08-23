@@ -1,5 +1,7 @@
 from pathlib import Path
 from urllib.request import urlretrieve
+import os
+import urllib.request
 
 import numpy as np
 
@@ -22,21 +24,30 @@ SAM_URL = (
 
 # Checkpoint
 
-def obtener_checkpoint(checkpoint_path):
-    """
-    Comprueba si existe el checkpoint de SAM.
-
-    Si no existe, pregunta al usuario si desea descargarlo.
-    """
-
-    checkpoint_path = Path(checkpoint_path)
-
-    if checkpoint_path.exists():
-        print(
-            f"Modelo SAM encontrado:\n"
-            f"{checkpoint_path}"
+def obtener_checkpoint(path_checkpoint):
+    # 1. Obtener la carpeta donde debe guardarse el archivo
+    folder = os.path.dirname(path_checkpoint)
+    
+    # 2. Si la ruta incluye una carpeta y no existe, la crea
+    if folder and not os.path.exists(folder):
+        os.makedirs(folder, exist_ok=True)
+        
+    # 3. Si el archivo .pth no existe, lo descarga automáticamente
+    if not os.path.exists(path_checkpoint):
+        print(f"Descargando checkpoint SAM en: {path_checkpoint}...")
+        url = "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth"
+        
+        # Descarga con User-Agent para evitar bloqueos HTTP 403
+        req = urllib.request.Request(
+            url, 
+            headers={'User-Agent': 'Mozilla/5.0'}
         )
-        return checkpoint_path
+        with urllib.request.urlopen(req) as response, open(path_checkpoint, 'wb') as out_file:
+            out_file.write(response.read())
+            
+        print("¡Descarga de checkpoint completada con éxito!")
+        
+    return path_checkpoint
 
     print("\nNo se encontró el modelo SAM ViT-B.")
 
@@ -57,7 +68,7 @@ def obtener_checkpoint(checkpoint_path):
     print("\nDescargando SAM ViT-B...")
     print(f"Destino: {checkpoint_path}")
 
-    urlretrieve(
+    urllib.request.urlretrieve(
         SAM_URL,
         checkpoint_path
     )

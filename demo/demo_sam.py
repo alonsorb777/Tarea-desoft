@@ -1,392 +1,227 @@
-from pathlib import Path
-
-import matplotlib.pyplot as plt
+import os
+import glob
+import io
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import streamlit as st
 import torch
+from astropy.io import fits
 
-from src.fits_loader import cargar_fits
-
+# ---------------------------------------------------------
+# IMPORTACIÓN DIRECTA DE MÓDULOS (src/)
+# ---------------------------------------------------------
+from src.descarga import descargar_continuum_dsharp, DEFAULT_DATA_DIR
 from src.segmentacion.sam_segmentacion import (
     obtener_checkpoint,
     cargar_modelo,
     preparar_imagen,
     reducir_imagen_para_sam,
     generar_mascaras,
-    ordenar_mascaras,
+    ordenar_mascaras
 )
 
-# Connfiguracion
-
-
-ARCHIVO_FITS = Path(
-    "data/AS209_continuum.fits"
-)
-
-CHECKPOINT_SAM = Path(
-    "models/sam_vit_b_01ec64.pth"
-)
-
-
-
-# Preparar imagen para visualización
-
-
-def preparar_visualizacion(imagen):
+#Función para filtrar máscaras que ocupan demasiado espacio (fondo) y limitar a las top 10 más relevantes
+def filtrar_y_limitar_mascaras(masks, max_area_ratio=0.40, top_n=10):
     """
-    Prepara una imagen FITS para visualizarla
-    correctamente.
-
-    Se utiliza la misma normalización general
-    empleada para preparar la imagen para SAM.
+    Filtra máscaras que corresponden al fondo (ocupan un área excesiva)
+    y retiene solo las top 10 máscaras más relevantes.
     """
-
-    imagen = np.asarray(
-        imagen,
-        dtype=np.float32
-    )
-
-    imagen = np.nan_to_num(
-        imagen,
-        nan=0.0,
-        posinf=0.0,
-        neginf=0.0
-    )
-
-    minimo = np.percentile(
-        imagen,
-        1
-    )
-
-    maximo = np.percentile(
-        imagen,
-        99.5
-    )
-
-    if maximo <= minimo:
-        raise ValueError(
-            "No es posible visualizar la imagen."
-        )
-
-    imagen = np.clip(
-        imagen,
-        minimo,
-        maximo
-    )
-
-    imagen = (
-        imagen - minimo
-    ) / (
-        maximo - minimo
-    )
-
-    imagen = (
-        np.arcsinh(
-            10 * imagen
-        )
-        / np.arcsinh(10)
-    )
-
-    return imagen
-
-
-
-# Visualizar máscaras
-
-
-def visualizar_resultados(
-    imagen,
-    masks,
-    cantidad=10
-):
-    """
-    Muestra la imagen original y las mejores
-    máscaras generadas por SAM.
-    """
-
-    imagen_visual = preparar_visualizacion(
-        imagen
-    )
-
-    masks_ordenadas = ordenar_mascaras(
-        masks,
-        criterio="predicted_iou"
-    )
-
-    mejores = masks_ordenadas[
-        :cantidad
-    ]
-
-    fig, axes = plt.subplots(
-        1,
-        2,
-        figsize=(15, 7)
-    )
-
-   
-    # Imagen original
-
-
-    axes[0].imshow(
-        imagen_visual,
-        cmap="inferno",
-        origin="lower"
-    )
-
-    axes[0].set_title(
-        "AS 209 - Imagen DSHARP"
-    )
-
-    axes[0].set_xlabel(
-        "Píxeles"
-    )
-
-    axes[0].set_ylabel(
-        "Píxeles"
-    )
-
-  
-    # Máscaras
-
-
-    axes[1].imshow(
-        imagen_visual,
-        cmap="inferno",
-        origin="lower"
-    )
-
-    for i, mask in enumerate(
-        mejores
-    ):
-
-        axes[1].contour(
-            mask["segmentation"],
-            levels=[0.5],
-            linewidths=1
-        )
-
-    axes[1].set_title(
-        f"Top {len(mejores)} máscaras SAM"
-    )
-
-    axes[1].set_xlabel(
-        "Píxeles"
-    )
-
-    axes[1].set_ylabel(
-        "Píxeles"
-    )
-
-    plt.tight_layout()
-
-    plt.show()
-
-
-
-# Informacion de mascaras
-
-
-def mostrar_informacion_mascaras(
-    masks,
-    cantidad=10
-):
-    """
-    Muestra información de las mejores máscaras.
-    """
-
-    masks_ordenadas = ordenar_mascaras(
-        masks,
-        criterio="predicted_iou"
-    )
-
-    mejores = masks_ordenadas[
-        :cantidad
-    ]
-
-    print()
-    print("=" * 60)
-    print("INFORMACIÓN DE LAS MÁSCARAS")
-    print("=" * 60)
-
-    for i, mask in enumerate(
-        mejores
-    ):
-
-        print()
-        print(
-            f"Máscara {i + 1}"
-        )
-
-        print(
-            f"Área: {mask['area']}"
-        )
-
-        print(
-            f"IoU predicho: "
-            f"{mask['predicted_iou']:.4f}"
-        )
-
-        print(
-            f"Estabilidad: "
-            f"{mask['stability_score']:.4f}"
-        )
-
-        print(
-            f"Bounding box: "
-            f"{mask['bbox']}"
-        )
-
-
-
-# Main
-
-
-def main():
-
-    print("=" * 60)
-    print("DEMO DE SEGMENTACIÓN SAM - AS 209")
-    print("=" * 60)
-
-
-    # 1. Seleccionar dispositivo
-  
-
-    device = torch.device(
-        "cuda"
-        if torch.cuda.is_available()
-        else "cpu"
-    )
-
-    print()
-    print(
-        f"Dispositivo utilizado: {device}"
-    )
-
-
-    # 2. Cargar imagen FITS
-
-
-    print()
-    print("Cargando imagen FITS...")
-
-    imagen = cargar_fits(
-        ARCHIVO_FITS
-    )
-
-    print(
-        f"Forma de la imagen: "
-        f"{imagen.shape}"
-    )
-
-
-    # 3. Preparar imagen para SAM
-
-
-    print()
-    print(
-        "Preparando imagen para SAM..."
-    )
-
-    imagen_rgb = preparar_imagen(
-        imagen
-    )
-
-    print(
-        f"Forma RGB: "
-        f"{imagen_rgb.shape}"
-    )
-
-
-    # 4. Reducir imagen
-
-
-    print()
-    print(
-        "Ajustando tamaño de imagen..."
-    )
-
-    imagen_sam, escala = (
-        reducir_imagen_para_sam(
-            imagen_rgb,
-            max_size=1500
-        )
-    )
-
-    print(
-        f"Forma utilizada por SAM: "
-        f"{imagen_sam.shape}"
-    )
-
-    print(
-        f"Escala utilizada: "
-        f"{escala:.4f}"
-    )
-
-   
-    # 5. Obtener checkpoint
-  
-    print()
-    print(
-        "Comprobando modelo SAM..."
-    )
-
-    checkpoint = obtener_checkpoint(
-        CHECKPOINT_SAM
-    )
-
-
-    # 6. Cargar SAM
-  
-
-    predictor = cargar_modelo(
-        checkpoint,
-        device
-    )
-
+    if not masks:
+        return []
     
-    # 7. Generar máscaras
-   
+    # Obtener dimensiones de la imagen desde la primera máscara
+    h, w = masks[0]["segmentation"].shape
+    area_total = h * w
+    
+    mascaras_filtradas = []
+    for m in masks:
+        area_mask = m.get("area", np.sum(m["segmentation"]))
+        # Descartar si la máscara ocupa más del 40% de la imagen total (Fondo)
+        if (area_mask / area_total) <= max_area_ratio:
+            mascaras_filtradas.append(m)
+            
+    # Retorna las primeras 10 máscaras más relevantes (según el orden original)
+    mascaras_filtradas.sort(key=lambda x: x.get("predicted_iou", 0), reverse=True)  # Ordenar por IoU predicho
+    return mascaras_filtradas[:top_n]
 
-    print()
-    print(
-        "Ejecutando segmentación automática..."
+st.set_page_config(page_title="DSHARP + SAM Analyzer", layout="wide")
+
+# 1. DETECCIÓN DE HARDWARE (CPU / GPU)
+@st.cache_resource
+def detectar_hardware():
+    if torch.cuda.is_available():
+        return "cuda", f"GPU CUDA ({torch.cuda.get_device_name(0)})"
+    return "cpu", "CPU (Procesamiento por software)"
+
+device, device_label = detectar_hardware()
+
+st.title("Segmentación de Discos Protoplanetarios (DSHARP + SAM)")
+st.caption(f"**Dispositivo detectado:** {device_label}")
+
+# 2. SELECCIÓN O DESCARGA DEL DISCO PROTOPLANETARIO
+st.sidebar.header("1. Selección del Disco")
+
+local_fits = glob.glob(os.path.join(DEFAULT_DATA_DIR, "*.fits"))
+
+origen = st.sidebar.radio(
+    "Fuente de datos:",
+    ["Discos en carpeta local (data/)", "Descargar de DSHARP (Web)", "Subir archivo .fits local"]
+)
+
+fits_file_path = None
+raw_fits_data = None
+
+if origen == "Discos en carpeta local (data/)":
+    if local_fits:
+        selected = st.sidebar.selectbox("Selecciona un disco:", local_fits)
+        fits_file_path = selected
+        with fits.open(selected) as hdul:
+            raw_fits_data = hdul[0].data
+    else:
+        st.sidebar.warning("No hay archivos .fits en la carpeta 'data/'.")
+
+elif origen == "Descargar de DSHARP (Web)":
+    # Lista de discos representativos de DSHARP
+    discos_dsharp = ["AS209", "HD163296", "Elias24", "GWLup", "HTLup", "IMLup", "MYLup", "WaOph6"]
+    disco_target = st.sidebar.selectbox("Selecciona el objetivo DSHARP:", discos_dsharp)
+    
+    if st.sidebar.button(f"Descargar {disco_target}"):
+        with st.spinner(f"Descargando continuum de {disco_target} desde ALMA..."):
+            descargar_continuum_dsharp(disco_target)
+            st.sidebar.success(f"¡{disco_target} descargado en data/!")
+            st.rerun()
+
+elif origen == "Subir archivo .fits local":
+    uploaded = st.sidebar.file_uploader("Cargar imagen .fits", type=["fits"])
+    if uploaded is not None:
+        fits_file_path = uploaded
+        with fits.open(io.BytesIO(uploaded.getvalue())) as hdul:
+            raw_fits_data = hdul[0].data
+
+# Ajustar dimensiones de la matriz astronómica (4D/3D a 2D)
+if raw_fits_data is not None:
+    while raw_fits_data.ndim > 2:
+        raw_fits_data = raw_fits_data[0]
+
+# 3. GENERACIÓN DE MÁSCARAS CON SAM
+if fits_file_path is not None and raw_fits_data is not None:
+    st.sidebar.success("Imagen FITS cargada correctamente")
+
+    st.sidebar.header("2. Parámetros de SAM")
+    criterio_orden = st.sidebar.selectbox(
+        "Ordenar máscaras por:",
+        ["predicted_iou", "stability_score", "area"]
     )
 
-    masks = generar_mascaras(
-        predictor,
-        imagen_sam,
-        points_per_side=32,
-        pred_iou_thresh=0.75,
-        stability_score_thresh=0.85,
-        min_mask_region_area=50,
-        crop_n_layers=1
-    )
+    if st.sidebar.button("Ejecutar Segmentación SAM"):
+        with st.spinner("Procesando estructura con SAM..."):
+            # A. Obtener Checkpoint
+            checkpoint_path = os.path.join("models", "sam_vit_b_01ec64.pth")
+            actual_checkpoint = obtener_checkpoint(checkpoint_path)
 
-   
-    # 8. Información
+            # B. Cargar Modelo usando la función de tu equipo
+            predictor = cargar_modelo(actual_checkpoint, device=device)
 
+            # C. Preparar y Reducir Imagen usando tu normalización astronómica (asinh)
+            rgb_image = preparar_imagen(raw_fits_data)
+            rgb_reducida, escala = reducir_imagen_para_sam(rgb_image, max_size=1500)
 
-    mostrar_informacion_mascaras(
-        masks,
-        cantidad=10
-    )
+            # D. Generar, Ordenar y Filtrar Máscaras
+            masks = generar_mascaras(predictor, rgb_reducida)
+            masks_ordenadas = ordenar_mascaras(masks, criterio=criterio_orden)
+            
+            # Aplicar filtro de fondo y limitar a las top 10 estructuras principales
+            masks_finales = filtrar_y_limitar_mascaras(masks_ordenadas, max_area_ratio=0.40, top_n=10)
 
+            # Guardar en Estado de Sesión de Streamlit
+            st.session_state["masks"] = masks_finales
+            st.session_state["rgb_display"] = rgb_reducida
+            st.session_state["raw_fits"] = raw_fits_data
 
-    # 9. Visualización
+# 4. INTERACCIÓN Y ANÁLISIS DE MÁSCARAS
+if "masks" in st.session_state:
+    masks = st.session_state["masks"]
+    rgb_display = st.session_state["rgb_display"]
+    raw_fits = st.session_state["raw_fits"]
 
+    st.subheader("Análisis y Caracterización de Estructuras Identificadas")
 
-    print()
-    print(
-        "Abriendo visualización..."
-    )
+    # Extraer métricas y características de cada máscara
+    stats_list = []
+    for i, m in enumerate(masks):
+        mask_array = m["segmentation"]
+        area_px = int(m.get("area", np.sum(mask_array)))
+        iou = round(float(m.get("predicted_iou", 0)), 4)
+        stability = round(float(m.get("stability_score", 0)), 4)
 
-    visualizar_resultados(
-        imagen_sam,
-        masks,
-        cantidad=10
-    )
+        stats_list.append({
+            "ID Máscara": i + 1,
+            "Área (px)": area_px,
+            "IoU Predicho": iou,
+            "Estabilidad": stability,
+            "BBox [x, y, w, h]": str(m.get("bbox", []))
+        })
 
-# Ejecución
+    df_stats = pd.DataFrame(stats_list)
 
+    col1, col2 = st.columns([1, 1])
 
-if __name__ == "__main__":
-    main()
+    with col1:
+        st.write("### Propiedades de las Máscaras")
+        selected_ids = st.multiselect(
+            "Selecciona las máscaras a visualizar en el mapa del disco:",
+            options=df_stats["ID Máscara"].tolist(),
+            default=[1] if len(df_stats) > 0 else []
+        )
+        st.dataframe(df_stats, use_container_width=True)
+
+    with col2:
+        st.write("### Visualización de Estructuras")
+        fig, ax = plt.subplots(figsize=(6, 6))
+        ax.imshow(rgb_display)
+
+        # Superponer las máscaras seleccionadas
+        overlay = np.zeros_like(rgb_display)
+        for m_id in selected_ids:
+            mask_bin = masks[m_id - 1]["segmentation"]
+            overlay[mask_bin] = [255, 100, 0]  # Resaltado en naranja
+
+        ax.imshow(overlay, alpha=0.5)
+        ax.axis("off")
+        st.pyplot(fig)
+        plt.close(fig)
+
+    # 5. EXPORTACIÓN Y GUARDADO DE RESULTADOS
+    st.markdown("---")
+    st.subheader(" Exportar Resultados")
+
+    col_dl1, col_dl2 = st.columns(2)
+
+    with col_dl1:
+        csv_bytes = df_stats.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            " Guardar Métricas (.CSV)",
+            data=csv_bytes,
+            file_name="caracteristicas_disco.csv",
+            mime="text/csv"
+        )
+
+    with col_dl2:
+        if selected_ids:
+            mascaras_dict = {
+                f"mask_{m_id}": masks[m_id - 1]["segmentation"]
+                for m_id in selected_ids
+            }
+            buffer = io.BytesIO()
+            np.savez_compressed(buffer, **mascaras_dict)
+            buffer.seek(0)
+
+            st.download_button(
+                " Guardar Máscaras Seleccionadas (.NPZ)",
+                data=buffer,
+                file_name="mascaras_disco.npz",
+                mime="application/octet-stream"
+            )
+else:
+    st.info("Selecciona o descarga un disco protoplanetario para iniciar la segmentación.")
