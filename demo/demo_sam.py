@@ -60,7 +60,7 @@ def reproducir_sonido_exito():
             <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
         </audio>
     """
-    st.components.v1.html(sound_html, height=0)
+    st.html(sound_html)
 
 # Helper: Filtrar fondo y retener Top 10 máscaras más relevantes según el criterio de ordenamiento
 def filtrar_y_limitar_mascaras(masks, max_area_ratio=0.40, top_n=10):
@@ -201,26 +201,38 @@ if "masks" in st.session_state:
             options=df_stats["ID Máscara"].tolist(),
             default=df_stats["ID Máscara"].tolist()
         )
-        st.dataframe(df_stats, use_container_width=True)
+        st.dataframe(df_stats, width='stretch')
 
-    # Preparar figura para visualización y posterior exportación
-    fig, ax = plt.subplots(1, 2, figsize=(10, 5), facecolor='#0b0d17')
+    # Configuración de figura con estilo astrofísico
+    fig, ax = plt.subplots(1, 2, figsize=(12, 6), facecolor='#0b0d17')
     
-    # Subplot 1: Original
+    # Subplot 1: Imagen Original DSHARP
+    ax[0].set_facecolor('#0b0d17')
     ax[0].imshow(rgb_display)
-    ax[0].set_title(f"Original ({nombre_disco})", color='white')
-    ax[0].axis("off")
+    ax[0].set_title(f"{nombre_disco} - Imagen DSHARP", color='white', fontsize=12, pad=10)
+    ax[0].set_xlabel("Píxeles", color='white')
+    ax[0].set_ylabel("Píxeles", color='white')
+    ax[0].tick_params(colors='white')
 
-    # Subplot 2: Segmentada
-    overlay = np.zeros_like(rgb_display)
-    for m_id in selected_ids:
-        mask_bin = masks[m_id - 1]["segmentation"]
-        overlay[mask_bin] = [255, 120, 0]
-
+    # Subplot 2: Máscaras SAM dibujadas por CONTORNOS
+    ax[1].set_facecolor('#0b0d17')
     ax[1].imshow(rgb_display)
-    ax[1].imshow(overlay, alpha=0.5)
-    ax[1].set_title("Estructuras Segmentadas", color='white')
-    ax[1].axis("off")
+    
+    # Paleta de colores para diferenciar los contornos de cada máscara
+    cmap = plt.colormaps["tab10"]
+
+    for idx, m_id in enumerate(selected_ids):
+        mask_bin = masks[m_id - 1]["segmentation"]
+        color = cmap(idx % 10)
+        # Dibujar ÚNICAMENTE los contornos/bordes (sin rellenar sólido)
+        ax[1].contour(mask_bin, levels=[0.5], colors=[color], linewidths=1.2)
+
+    ax[1].set_title(f"Top {len(selected_ids)} máscaras SAM", color='white', fontsize=12, pad=10)
+    ax[1].set_xlabel("Píxeles", color='white')
+    ax[1].set_ylabel("Píxeles", color='white')
+    ax[1].tick_params(colors='white')
+
+    plt.tight_layout()
 
     with col2:
         st.write("### 🔭 Comparativa Visual")
