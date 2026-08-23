@@ -60,7 +60,7 @@ def reproducir_sonido_exito():
             <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
         </audio>
     """
-    st.components.v1.html(sound_html, height=0)
+    st.html(sound_html)
 
 # Helper: Filtrar fondo y retener Top 10
 def filtrar_y_limitar_mascaras(masks, max_area_ratio=0.40, top_n=10):
@@ -201,7 +201,7 @@ if "masks" in st.session_state:
             options=df_stats["ID Máscara"].tolist(),
             default=df_stats["ID Máscara"].tolist()
         )
-        st.dataframe(df_stats, use_container_width=True)
+        st.dataframe(df_stats, width='stretch')
 
     # Configuración de figura con estilo astrofísico
     fig, ax = plt.subplots(1, 2, figsize=(12, 6), facecolor='#0b0d17')
@@ -219,8 +219,7 @@ if "masks" in st.session_state:
     ax[1].imshow(rgb_display)
     
     # Paleta de colores para diferenciar los contornos de cada máscara
-    cmap = plt.cm.get_cmap("tab10", max(len(selected_ids), 1))
-
+    cmap = plt.colormaps["tab10"]
     for idx, m_id in enumerate(selected_ids):
         mask_bin = masks[m_id - 1]["segmentation"]
         color = cmap(idx % 10)
