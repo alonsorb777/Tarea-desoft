@@ -8,9 +8,9 @@ import streamlit as st
 import torch
 from astropy.io import fits
 
-# ---------------------------------------------------------
-# IMPORTACIÓN DIRECTA DE MÓDULOS (src/)
-# ---------------------------------------------------------
+# -------------------------------
+# Importación de módulos de src/
+# -------------------------------
 from src.descarga import descargar_continuum_dsharp, DEFAULT_DATA_DIR
 from src.segmentacion.sam_segmentacion import (
     obtener_checkpoint,
@@ -21,146 +21,173 @@ from src.segmentacion.sam_segmentacion import (
     ordenar_mascaras
 )
 
-#Función para filtrar máscaras que ocupan demasiado espacio (fondo) y limitar a las top 10 más relevantes
+# 1. Configuración de la página y estilo 
+st.set_page_config(
+    page_title="ALMA + SAM Protoplanetary Analyzer", 
+    page_icon="🌌",
+    layout="wide"
+)
+
+# Estilo personalizado: Fondo cósmico oscuro y letras claras
+st.markdown("""
+    <style>
+    .stApp {
+        background-color: #0b0d17;
+        color: #e2e8f0;
+    }
+    .stSidebar {
+        background-color: #151928;
+    }
+    h1, h2, h3 {
+        color: #38bdf8 !important;
+        font-family: 'Trebuchet MS', sans-serif;
+    }
+    .stButton>button {
+        background: linear-gradient(90deg, #4f46e5 0%, #06b6d4 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: bold;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# Helper: Reproducir un sonido discreto al finalizar la segmentación
+def reproducir_sonido_exito():
+    # Frecuencia de audio corta y limpia (Beep/Chime)
+    sound_html = """
+        <audio autoplay style="display:none;">
+            <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mpeg">
+        </audio>
+    """
+    st.components.v1.html(sound_html, height=0)
+
+# Helper: Filtrar fondo y retener Top 10 máscaras más relevantes según el criterio de ordenamiento
 def filtrar_y_limitar_mascaras(masks, max_area_ratio=0.40, top_n=10):
-    """
-    Filtra máscaras que corresponden al fondo (ocupan un área excesiva)
-    y retiene solo las top 10 máscaras más relevantes.
-    """
     if not masks:
         return []
-    
-    # Obtener dimensiones de la imagen desde la primera máscara
     h, w = masks[0]["segmentation"].shape
     area_total = h * w
-    
     mascaras_filtradas = []
     for m in masks:
         area_mask = m.get("area", np.sum(m["segmentation"]))
-        # Descartar si la máscara ocupa más del 40% de la imagen total (Fondo)
         if (area_mask / area_total) <= max_area_ratio:
             mascaras_filtradas.append(m)
-            
-    # Retorna las primeras 10 máscaras más relevantes (según el orden original)
-    mascaras_filtradas.sort(key=lambda x: x.get("predicted_iou", 0), reverse=True)  # Ordenar por IoU predicho
     return mascaras_filtradas[:top_n]
 
-st.set_page_config(page_title="DSHARP + SAM Analyzer", layout="wide")
-
-# 1. DETECCIÓN DE HARDWARE (CPU / GPU)
+# 2. CPU/GPU Selección automática y visualización del hardware activo
 @st.cache_resource
 def detectar_hardware():
     if torch.cuda.is_available():
-        return "cuda", f"GPU CUDA ({torch.cuda.get_device_name(0)})"
-    return "cpu", "CPU (Procesamiento por software)"
+        return "cuda", f"⚡ GPU CUDA ({torch.cuda.get_device_name(0)})"
+    return "cpu", "💻 CPU (Procesamiento por software)"
 
 device, device_label = detectar_hardware()
 
-st.title("Segmentación de Discos Protoplanetarios (DSHARP + SAM)")
-st.caption(f"**Dispositivo detectado:** {device_label}")
+st.title("🌌 Segmentación de Discos Protoplanetarios")
+st.caption(f"**Hardware activo:** {device_label}")
 
-# 2. SELECCIÓN O DESCARGA DEL DISCO PROTOPLANETARIO
-st.sidebar.header("1. Selección del Disco")
+# 3. SELECCIÓN DE ARCHIVO (Limpio y legible)
+st.sidebar.header("🛸 1. Selección del Disco")
 
 local_fits = glob.glob(os.path.join(DEFAULT_DATA_DIR, "*.fits"))
 
+# Diccionario para mapear solo el nombre corto del archivo
+nombres_limpios_fits = {os.path.basename(f): f for f in local_fits}
+
 origen = st.sidebar.radio(
     "Fuente de datos:",
-    ["Discos en carpeta local (data/)", "Descargar de DSHARP (Web)", "Subir archivo .fits local"]
+    ["Discos locales (data/)", "Descargar de DSHARP (Web)", "Subir archivo .fits"]
 )
 
 fits_file_path = None
 raw_fits_data = None
+nombre_disco_display = "disco_desconocido"
 
-if origen == "Discos en carpeta local (data/)":
-    if local_fits:
-        selected = st.sidebar.selectbox("Selecciona un disco:", local_fits)
-        fits_file_path = selected
-        with fits.open(selected) as hdul:
+if origen == "Discos locales (data/)":
+    if nombres_limpios_fits:
+        seleccion_limpia = st.sidebar.selectbox("Disco seleccionado:", list(nombres_limpios_fits.keys()))
+        fits_file_path = nombres_limpios_fits[seleccion_limpia]
+        nombre_disco_display = seleccion_limpia.replace(".fits", "")
+        with fits.open(fits_file_path) as hdul:
             raw_fits_data = hdul[0].data
+        st.sidebar.info(f"**Archivo activo:** `{seleccion_limpia}`")
     else:
-        st.sidebar.warning("No hay archivos .fits en la carpeta 'data/'.")
+        st.sidebar.warning("No hay archivos .fits en 'data/'.")
 
 elif origen == "Descargar de DSHARP (Web)":
-    # Lista de discos representativos de DSHARP
     discos_dsharp = ["AS209", "HD163296", "Elias24", "GWLup", "HTLup", "IMLup", "MYLup", "WaOph6"]
-    disco_target = st.sidebar.selectbox("Selecciona el objetivo DSHARP:", discos_dsharp)
+    disco_target = st.sidebar.selectbox("Objetivo DSHARP:", discos_dsharp)
     
-    if st.sidebar.button(f"Descargar {disco_target}"):
-        with st.spinner(f"Descargando continuum de {disco_target} desde ALMA..."):
+    if st.sidebar.button(f"📥 Descargar {disco_target}"):
+        with st.spinner(f"Descargando datos de ALMA para {disco_target}..."):
             descargar_continuum_dsharp(disco_target)
-            st.sidebar.success(f"¡{disco_target} descargado en data/!")
+            st.sidebar.success(f"¡{disco_target} listo!")
             st.rerun()
 
-elif origen == "Subir archivo .fits local":
-    uploaded = st.sidebar.file_uploader("Cargar imagen .fits", type=["fits"])
+elif origen == "Subir archivo .fits":
+    uploaded = st.sidebar.file_uploader("Cargar .fits local", type=["fits"])
     if uploaded is not None:
         fits_file_path = uploaded
+        nombre_disco_display = uploaded.name.replace(".fits", "")
         with fits.open(io.BytesIO(uploaded.getvalue())) as hdul:
             raw_fits_data = hdul[0].data
 
-# Ajustar dimensiones de la matriz astronómica (4D/3D a 2D)
+# Ajustar dimensiones astronómicas 4D/3D a 2D
 if raw_fits_data is not None:
     while raw_fits_data.ndim > 2:
         raw_fits_data = raw_fits_data[0]
 
-# 3. GENERACIÓN DE MÁSCARAS CON SAM
+# 4. Parametros y procesamiento de segmentación
 if fits_file_path is not None and raw_fits_data is not None:
-    st.sidebar.success("Imagen FITS cargada correctamente")
-
-    st.sidebar.header("2. Parámetros de SAM")
+    st.sidebar.header("⚙️ 2. Parámetros SAM")
     criterio_orden = st.sidebar.selectbox(
-        "Ordenar máscaras por:",
+        "Clasificar máscaras por:",
         ["predicted_iou", "stability_score", "area"]
     )
 
-    if st.sidebar.button("Ejecutar Segmentación SAM"):
-        with st.spinner("Procesando estructura con SAM..."):
-            # A. Obtener Checkpoint
+    if st.sidebar.button("🚀 Ejecutar Segmentación"):
+        with st.spinner("🔍 Analizando estructuras del disco protoplanetario..."):
             checkpoint_path = os.path.join("models", "sam_vit_b_01ec64.pth")
             actual_checkpoint = obtener_checkpoint(checkpoint_path)
 
-            # B. Cargar Modelo usando la función de tu equipo
             predictor = cargar_modelo(actual_checkpoint, device=device)
-
-            # C. Preparar y Reducir Imagen usando tu normalización astronómica (asinh)
             rgb_image = preparar_imagen(raw_fits_data)
             rgb_reducida, escala = reducir_imagen_para_sam(rgb_image, max_size=1500)
 
-            # D. Generar, Ordenar y Filtrar Máscaras
             masks = generar_mascaras(predictor, rgb_reducida)
             masks_ordenadas = ordenar_mascaras(masks, criterio=criterio_orden)
-            
-            # Aplicar filtro de fondo y limitar a las top 10 estructuras principales
             masks_finales = filtrar_y_limitar_mascaras(masks_ordenadas, max_area_ratio=0.40, top_n=10)
 
-            # Guardar en Estado de Sesión de Streamlit
             st.session_state["masks"] = masks_finales
             st.session_state["rgb_display"] = rgb_reducida
             st.session_state["raw_fits"] = raw_fits_data
+            st.session_state["nombre_disco"] = nombre_disco_display
+            
+            # Reproducir el sonidito al finalizar
+            st.session_state["play_sound"] = True
 
-# 4. INTERACCIÓN Y ANÁLISIS DE MÁSCARAS
+# Reproducir audio si está activado
+if st.session_state.get("play_sound", False):
+    reproducir_sonido_exito()
+    st.session_state["play_sound"] = False
+
+# 5. VVizualizacion interactiva de resultados
 if "masks" in st.session_state:
     masks = st.session_state["masks"]
     rgb_display = st.session_state["rgb_display"]
-    raw_fits = st.session_state["raw_fits"]
+    nombre_disco = st.session_state.get("nombre_disco", "disco")
 
-    st.subheader("Análisis y Caracterización de Estructuras Identificadas")
+    st.subheader(f"✨ Análisis de Estructuras Principal: {nombre_disco}")
 
-    # Extraer métricas y características de cada máscara
     stats_list = []
     for i, m in enumerate(masks):
         mask_array = m["segmentation"]
-        area_px = int(m.get("area", np.sum(mask_array)))
-        iou = round(float(m.get("predicted_iou", 0)), 4)
-        stability = round(float(m.get("stability_score", 0)), 4)
-
         stats_list.append({
             "ID Máscara": i + 1,
-            "Área (px)": area_px,
-            "IoU Predicho": iou,
-            "Estabilidad": stability,
-            "BBox [x, y, w, h]": str(m.get("bbox", []))
+            "Área (px)": int(m.get("area", np.sum(mask_array))),
+            "IoU Predicho": round(float(m.get("predicted_iou", 0)), 4),
+            "Estabilidad": round(float(m.get("stability_score", 0)), 4)
         })
 
     df_stats = pd.DataFrame(stats_list)
@@ -168,60 +195,79 @@ if "masks" in st.session_state:
     col1, col2 = st.columns([1, 1])
 
     with col1:
-        st.write("### Propiedades de las Máscaras")
+        st.write("### 📊 Top 10 Estructuras Identificadas")
         selected_ids = st.multiselect(
-            "Selecciona las máscaras a visualizar en el mapa del disco:",
+            "Selecciona máscaras a inspeccionar:",
             options=df_stats["ID Máscara"].tolist(),
-            default=[1] if len(df_stats) > 0 else []
+            default=df_stats["ID Máscara"].tolist()
         )
         st.dataframe(df_stats, use_container_width=True)
 
+    # Preparar figura para visualización y posterior exportación
+    fig, ax = plt.subplots(1, 2, figsize=(10, 5), facecolor='#0b0d17')
+    
+    # Subplot 1: Original
+    ax[0].imshow(rgb_display)
+    ax[0].set_title(f"Original ({nombre_disco})", color='white')
+    ax[0].axis("off")
+
+    # Subplot 2: Segmentada
+    overlay = np.zeros_like(rgb_display)
+    for m_id in selected_ids:
+        mask_bin = masks[m_id - 1]["segmentation"]
+        overlay[mask_bin] = [255, 120, 0]
+
+    ax[1].imshow(rgb_display)
+    ax[1].imshow(overlay, alpha=0.5)
+    ax[1].set_title("Estructuras Segmentadas", color='white')
+    ax[1].axis("off")
+
     with col2:
-        st.write("### Visualización de Estructuras")
-        fig, ax = plt.subplots(figsize=(6, 6))
-        ax.imshow(rgb_display)
-
-        # Superponer las máscaras seleccionadas
-        overlay = np.zeros_like(rgb_display)
-        for m_id in selected_ids:
-            mask_bin = masks[m_id - 1]["segmentation"]
-            overlay[mask_bin] = [255, 100, 0]  # Resaltado en naranja
-
-        ax.imshow(overlay, alpha=0.5)
-        ax.axis("off")
+        st.write("### 🔭 Comparativa Visual")
         st.pyplot(fig)
-        plt.close(fig)
 
-    # 5. EXPORTACIÓN Y GUARDADO DE RESULTADOS
+    # 6. DESCARGAS Y EXPORTACIÓN DE RESULTADOS
     st.markdown("---")
-    st.subheader(" Exportar Resultados")
+    st.subheader("💾 Exportar Resultados del Análisis")
 
-    col_dl1, col_dl2 = st.columns(2)
+    col_dl1, col_dl2, col_dl3 = st.columns(3)
 
+    # Descarga 1: Imagen Comparativa (PNG)
     with col_dl1:
-        csv_bytes = df_stats.to_csv(index=False).encode("utf-8")
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format="png", bbox_inches="tight", facecolor='#0b0d17')
+        img_buffer.seek(0)
+        
         st.download_button(
-            " Guardar Métricas (.CSV)",
-            data=csv_bytes,
-            file_name="caracteristicas_disco.csv",
+            "🖼️ Guardar Comparativa (.PNG)",
+            data=img_buffer,
+            file_name=f"{nombre_disco}_comparativa.png",
+            mime="image/png"
+        )
+    plt.close(fig)
+
+    # Descarga 2: Métricas (CSV)
+    with col_dl2:
+        st.download_button(
+            "📊 Guardar Métricas (.CSV)",
+            data=df_stats.to_csv(index=False).encode("utf-8"),
+            file_name=f"{nombre_disco}_metricas.csv",
             mime="text/csv"
         )
 
-    with col_dl2:
+    # Descarga 3: Máscaras (NPZ)
+    with col_dl3:
         if selected_ids:
-            mascaras_dict = {
-                f"mask_{m_id}": masks[m_id - 1]["segmentation"]
-                for m_id in selected_ids
-            }
-            buffer = io.BytesIO()
-            np.savez_compressed(buffer, **mascaras_dict)
-            buffer.seek(0)
+            mascaras_dict = {f"mask_{m_id}": masks[m_id - 1]["segmentation"] for m_id in selected_ids}
+            npz_buffer = io.BytesIO()
+            np.savez_compressed(npz_buffer, **mascaras_dict)
+            npz_buffer.seek(0)
 
             st.download_button(
-                " Guardar Máscaras Seleccionadas (.NPZ)",
-                data=buffer,
-                file_name="mascaras_disco.npz",
+                "📦 Guardar Máscaras (.NPZ)",
+                data=npz_buffer,
+                file_name=f"{nombre_disco}_mascaras.npz",
                 mime="application/octet-stream"
             )
 else:
-    st.info("Selecciona o descarga un disco protoplanetario para iniciar la segmentación.")
+    st.info("👈 Selecciona o descarga un disco en el menú lateral para iniciar el análisis.")
