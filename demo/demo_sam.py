@@ -216,7 +216,7 @@ if "masks" in st.session_state:
 
     # Subplot 2: Máscaras SAM dibujadas por CONTORNOS
     ax[1].set_facecolor('#0b0d17')
-    ax[1].imshow(rgb_display)
+    ax[1].imshow(rgb_display, origin="lower")
     
     # Paleta de colores para diferenciar los contornos de cada máscara
     cmap = plt.colormaps["tab10"]
@@ -224,7 +224,7 @@ if "masks" in st.session_state:
         mask_bin = masks[m_id - 1]["segmentation"]
         color = cmap(idx % 10)
         # Dibujar ÚNICAMENTE los contornos/bordes (sin rellenar sólido)
-        ax[1].contour(mask_bin, levels=[0.5], colors=[color], linewidths=1.2)
+        ax[1].contour(mask_bin, levels=[0.5], colors=[color], linewidths=1.2,origin="lower")
 
     ax[1].set_title(f"Top {len(selected_ids)} máscaras SAM", color='white', fontsize=12, pad=10)
     ax[1].set_xlabel("Píxeles", color='white')
