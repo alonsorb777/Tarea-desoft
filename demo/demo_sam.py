@@ -38,6 +38,39 @@ from src.segmentacion.sam_segmentacion import (
     ordenar_mascaras
 )
 
+import cv2
+
+def dibujar_contornos_mascaras(imagen_base, mascaras, top_n=10):
+    plt.style.use('dark_background')
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7))
+    fig.patch.set_facecolor('#0b0e14')
+    
+    # Subplot Izquierdo
+    ax1.imshow(imagen_base, cmap='gray')
+    ax1.set_title("AS209_continuum - Imagen DSHARP", fontsize=12, color='white')
+    ax1.set_xlabel("Píxeles")
+    ax1.set_ylabel("Píxeles")
+    
+    # Subplot Derecho
+    ax2.imshow(imagen_base, cmap='gray')
+    mascaras_top = mascaras[:top_n]
+    colores = plt.cm.get_cmap('tab10', top_n)
+    
+    for idx, mask_info in enumerate(mascaras_top):
+        mask_binary = mask_info['segmentation'].astype(np.uint8)
+        contours, _ = cv2.findContours(mask_binary, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        color = colores(idx)[:3]
+        for contour in contours:
+            contour = contour.squeeze()
+            if len(contour.shape) == 2:
+                ax2.plot(contour[:, 0], contour[:, 1], color=color, linewidth=1.5)
+                
+    ax2.set_title(f"Top {top_n} máscaras SAM", fontsize=12, color='white')
+    ax2.set_xlabel("Píxeles")
+    ax2.set_ylabel("Píxeles")
+    plt.tight_layout()
+    return fig
+
 # 1. Configuración de la página y estilo 
 st.set_page_config(
     page_title="ALMA + SAM Analisis de discos protoplanetarios", 
