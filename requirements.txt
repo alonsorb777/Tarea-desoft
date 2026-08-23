@@ -1,10 +1,11 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
 torch
 torchvision
 numpy
 pandas
 matplotlib
 astropy
-opencv-python
+opencv-python-headless
 requests
 streamlit
 git+https://github.com/facebookresearch/segment-anything.git
