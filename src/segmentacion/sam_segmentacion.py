@@ -394,10 +394,10 @@ def segmentar_disco(
 def generar_mascaras(
     predictor,
     imagen,
-    points_per_side=64,
+    points_per_side=16,
     pred_iou_thresh=0.65,
     stability_score_thresh=0.60,
-    min_mask_region_area=0,
+    min_mask_region_area=100,
     crop_n_layers=0
 ):
     """
