@@ -6,29 +6,23 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+#por si la web quiere seguir dando problemas, asegurarse de que existan las carpetas de datos y modelos
+os.makedirs(ROOT_DIR / "data", exist_ok=True)
+os.makedirs(ROOT_DIR / "models", exist_ok=True)
+
 import os
 import glob
 import io
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import streamlit as st
 import torch
 from astropy.io import fits
 
 # Agregar la raíz del proyecto a sys.path para que Streamlit detecte la carpeta src/
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-# Importaciones posteriores de src/
-from src.descarga import descargar_continuum_dsharp, DEFAULT_DATA_DIR
-from src.segmentacion.sam_segmentacion import (
-    obtener_checkpoint,
-    cargar_modelo,
-    preparar_imagen,
-    reducir_imagen_para_sam,
-    generar_mascaras,
-    ordenar_mascaras
-)
 
 # -------------------------------
 # Importación de módulos de src/
