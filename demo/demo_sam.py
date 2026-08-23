@@ -8,11 +8,7 @@ import sys
 from src.fits_loader import cargar_fits
 
 from src.segmentacion.sam_segmentacion import (
-    obtener_checkpoint,
-    cargar_modelo,
-    preparar_imagen,
-    reducir_imagen_para_sam,
-    generar_mascaras,
+    segmentar_objeto,
     ordenar_mascaras,
 )
 
@@ -297,37 +293,17 @@ def main():
     )
 
 
-    # 3. Preparar imagen para SAM
-
-
-    print()
-    print(
-        "Preparando imagen para SAM..."
-    )
-
-    imagen_rgb = preparar_imagen(
-        imagen
-    )
-
-    print(
-        f"Forma RGB: "
-        f"{imagen_rgb.shape}"
-    )
-
-
-    # 4. Reducir imagen
-
+    # 3. Ejecutar segmentación automática
 
     print()
     print(
-        "Ajustando tamaño de imagen..."
+        "Ejecutando segmentación automática..."
     )
 
-    imagen_sam, escala = (
-        reducir_imagen_para_sam(
-            imagen_rgb,
-            max_size=1500
-        )
+    masks, imagen_sam, escala = segmentar_objeto(
+        imagen,
+        CHECKPOINT_SAM,
+        device
     )
 
     print(
@@ -339,49 +315,8 @@ def main():
         f"Escala utilizada: "
         f"{escala:.4f}"
     )
-
    
-    # 5. Obtener checkpoint
-  
-    print()
-    print(
-        "Comprobando modelo SAM..."
-    )
-
-    checkpoint = obtener_checkpoint(
-        CHECKPOINT_SAM
-    )
-
-
-    # 6. Cargar SAM
-  
-
-    predictor = cargar_modelo(
-        checkpoint,
-        device
-    )
-
-    
-    # 7. Generar máscaras
-   
-
-    print()
-    print(
-        "Ejecutando segmentación automática..."
-    )
-
-    masks = generar_mascaras(
-        predictor,
-        imagen_sam,
-        points_per_side=32,
-        pred_iou_thresh=0.75,
-        stability_score_thresh=0.85,
-        min_mask_region_area=50,
-        crop_n_layers=1
-    )
-
-   
-    # 8. Información
+    # 4. Información
 
 
     mostrar_informacion_mascaras(
@@ -390,7 +325,7 @@ def main():
     )
 
 
-    # 9. Visualización
+    # 5. Visualización
 
 
     print()
