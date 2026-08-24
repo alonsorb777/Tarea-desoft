@@ -386,6 +386,31 @@ def segmentar_disco(
         "all_scores": scores
     }
 
+# ==========================================================
+# GUARDAR MÁSCARA
+# ==========================================================
+
+def guardar_mascara(mascara, ruta):
+    """
+    Guarda una máscara de segmentación en formato NumPy.
+    """
+
+    ruta = Path(ruta)
+
+    ruta.parent.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    np.save(
+        ruta,
+        mascara
+    )
+
+    print(
+        f"Máscara guardada en: {ruta}"
+    )
+
 
 # ==========================================================
 # SEGMENTACIÓN AUTOMÁTICA
