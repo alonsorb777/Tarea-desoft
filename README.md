@@ -38,9 +38,9 @@ Streamlit
 Cliente: Sebastán Peréz. Academico de la Universidad De Santiago especializado en formación exo-planetaria.
 
 Como utilizarlo:
-- Colocar la el archivo que se desea analizar en la carpeta de data
-- En scr/main.py ingresar la ruta del archivo que se desea analizar
-- Ejecutar main.py
+- Para poder ejecutar el programa primero debes tener git y pip actualizados
+- Se debe descargar la rama principal en .zip
+- Al extraer el proyecto hay que ejecutar a EJECUTABLES\Ejecutar_en_Windows.bat o EJECUTABLES\Ejecutar_en_Mac_Linux.sh
 
 Estado del Desarrollo: Sprint 2.
 
