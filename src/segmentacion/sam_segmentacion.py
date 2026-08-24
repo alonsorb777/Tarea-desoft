@@ -1,5 +1,4 @@
 from pathlib import Path
-from urllib.request import urlretrieve
 import os
 import urllib.request
 
@@ -14,12 +13,10 @@ from segment_anything import (
 
 # Configuración
 
-
 SAM_URL = (
     "https://dl.fbaipublicfiles.com/"
     "segment_anything/sam_vit_b_01ec64.pth"
 )
-
 
 
 # Checkpoint
@@ -29,17 +26,17 @@ def obtener_checkpoint(path_checkpoint):
     if folder and not os.path.exists(folder):
         os.makedirs(folder, exist_ok=True)
         
-    # Verificar si el archivo existe pero está corrupto / incompleto (menos de 300 MB)
+    # 1. Verificar si el archivo existe pero está corrupto / incompleto (menos de 300 MB)
     if os.path.exists(path_checkpoint):
         size_mb = os.path.getsize(path_checkpoint) / (1024 * 1024)
         if size_mb < 300:
             print(f"Detectado checkpoint incompleto ({size_mb:.2f} MB). Eliminando para re-descargar...")
             os.remove(path_checkpoint)
 
-    # Descargar si no existe
+    # 2. Descargar automáticamente si no existe o si fue eliminado por estar corrupto
     if not os.path.exists(path_checkpoint):
         print(f"Descargando checkpoint SAM en: {path_checkpoint}...")
-        url = "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth"
+        url = SAM_URL
         
         req = urllib.request.Request(
             url, 
@@ -52,40 +49,8 @@ def obtener_checkpoint(path_checkpoint):
         
     return path_checkpoint
 
-    print("\nNo se encontró el modelo SAM ViT-B.")
-
-    respuesta = input(
-        "¿Deseas descargarlo ahora? [s/n]: "
-    ).strip().lower()
-
-    if respuesta not in ["s", "si", "sí"]:
-        raise FileNotFoundError(
-            "No se puede ejecutar SAM sin el checkpoint."
-        )
-
-    checkpoint_path.parent.mkdir(
-        parents=True,
-        exist_ok=True
-    )
-
-    print("\nDescargando SAM ViT-B...")
-    print(f"Destino: {checkpoint_path}")
-
-    urllib.request.urlretrieve(
-        SAM_URL,
-        checkpoint_path
-    )
-
-    print(
-        "\nModelo SAM descargado correctamente."
-    )
-
-    return checkpoint_path
-
-
 
 # Cargar modelo
-
 
 def cargar_modelo(checkpoint_path, device):
     """
@@ -124,9 +89,7 @@ def cargar_modelo(checkpoint_path, device):
     return predictor
 
 
-
 # Preparar imagen
-
 
 def preparar_imagen(
     imagen,
@@ -217,9 +180,7 @@ def preparar_imagen(
     return imagen_rgb
 
 
-
 # Reducir imagen
-
 
 def reducir_imagen_para_sam(
     imagen,
@@ -280,9 +241,7 @@ def reducir_imagen_para_sam(
     )
 
 
-
 # Convertir coordenadas
-
 
 def convertir_coordenadas(
     x,
@@ -305,9 +264,7 @@ def convertir_coordenadas(
     ]
 
 
-
 # Segmentacion interactiva
-
 
 def segmentar_disco(
     predictor,
@@ -317,7 +274,6 @@ def segmentar_disco(
 ):
     """
     Segmenta una estructura utilizando SAM.
-
     """
 
     if len(puntos) == 0:
@@ -434,9 +390,7 @@ def generar_mascaras(
     return masks
 
 
-
 # Ordenar máscaras
-
 
 def ordenar_mascaras(
     masks,
