@@ -38,10 +38,10 @@ Streamlit
 Cliente: Sebastán Peréz. Academico de la Universidad De Santiago especializado en formación exo-planetaria.
 
 Como utilizarlo:
-- Para poder ejecutar el programa primero debes tener git y pip actualizados
+- Para poder ejecutar el programa se requiere tener instalada una versión de python >=3.9.
 - Se debe descargar la rama principal en .zip
 - Al extraer el proyecto hay que ejecutar a EJECUTABLES\Ejecutar_en_Windows.bat o EJECUTABLES\Ejecutar_en_Mac_Linux.sh
 
-Estado del Desarrollo: Sprint 2.
+Estado del Desarrollo: Sprint 3.
 
 ### Colaboradores: Christian Álvarez, Lindsay Rincón Torres, Alonso Robredo Bovet, Simona Serqueira y Sebastián Torres Carrasco.
