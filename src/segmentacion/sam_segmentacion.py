@@ -25,19 +25,22 @@ SAM_URL = (
 # Checkpoint
 
 def obtener_checkpoint(path_checkpoint):
-    # 1. Obtener la carpeta donde debe guardarse el archivo
     folder = os.path.dirname(path_checkpoint)
-    
-    # 2. Si la ruta incluye una carpeta y no existe, la crea
     if folder and not os.path.exists(folder):
         os.makedirs(folder, exist_ok=True)
         
-    # 3. Si el archivo .pth no existe, lo descarga automáticamente
+    # Verificar si el archivo existe pero está corrupto / incompleto (menos de 300 MB)
+    if os.path.exists(path_checkpoint):
+        size_mb = os.path.getsize(path_checkpoint) / (1024 * 1024)
+        if size_mb < 300:
+            print(f"Detectado checkpoint incompleto ({size_mb:.2f} MB). Eliminando para re-descargar...")
+            os.remove(path_checkpoint)
+
+    # Descargar si no existe
     if not os.path.exists(path_checkpoint):
         print(f"Descargando checkpoint SAM en: {path_checkpoint}...")
         url = "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth"
         
-        # Descarga con User-Agent para evitar bloqueos HTTP 403
         req = urllib.request.Request(
             url, 
             headers={'User-Agent': 'Mozilla/5.0'}
