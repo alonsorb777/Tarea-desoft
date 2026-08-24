@@ -21,13 +21,19 @@ Este programa permite identificar y caracterizar estructuras (anillos, gaps, asi
 
 ## Tecnologías
 
--Python
--Astropy
--Matplotlib
--Segment Anything (SAM)
--Git y GitHub
--Pytest
--Torch
+Python
+Segment Anything (SAM)
+Git
+Pytest
+Torch
+Torchvision
+Numpy
+Pandas
+Matplotlib
+Astropy
+Opencv-python-headless
+Requests
+Streamlit
 
 Cliente: Sebastán Peréz. Academico de la Universidad De Santiago especializado en formación exo-planetaria.
 
